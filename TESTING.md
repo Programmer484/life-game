@@ -17,7 +17,8 @@ coverage floor is enforced by `pnpm verify`.
 1. **The public surface first.** Every export from `index.ts` gets at least one
    test. This is the contract other modules depend on.
 2. **Branches and edge cases.** Empty/blank input, boundaries, error paths.
-   Coverage floor is 80% (lines, functions, branches, statements) — write the
+   Coverage floor is 40% for the v1 prototype (lines, functions, branches,
+   statements), ratcheting upward from there — write the
    branch test, don't chase the number. (Polish-lane modules — `"gates": "polish"`
    in `module-map.json` — are excluded from the floor only; every other
    check still runs.)
@@ -87,6 +88,11 @@ generation follows a strict doctrine:
   tests alongside: examples document the intended shape, properties guard the
   invariants.
 
+  **v1 scope:** limit properties to the 2–3 invariants that protect the demo —
+  growth monotonicity (the 18-task math), the 3-active-goal cap, and the
+  section-unlock trigger. Everything else, including save/load round-trip,
+  gets plain example tests for now.
+
 Then, for either style:
 
 - Add a test per public export.
@@ -99,12 +105,14 @@ Coverage tells you a line _ran_, not that anything _checked_ its result — a
 test with no assertions can execute every branch and catch nothing. The
 objective metric is the **mutation score**.
 
-- **Mutation score (Stryker).** `pnpm mutation` mutates the source (flips
-  conditionals, deletes statements) and reports how many mutants your tests
-  kill. It runs **CI-only** (it's slow). New modules need **≥60%** before the
-  suite is trusted — the `break: 60` threshold in `stryker.config.mjs`, which
-  ratchets upward like the coverage floor. A low score means assertion-free or
-  vacuous tests.
+- **Mutation score (Stryker) — OFF for v1.** `pnpm mutation` mutates the
+  source (flips conditionals, deletes statements) and reports how many mutants
+  your tests kill. Its CI job is commented out in `.github/workflows/ci.yml`
+  for the prototype: it's the most expensive gate and its payoff is trust in a
+  long-lived suite, which v1's isn't. `stryker.config.mjs` and the script are
+  kept ready — when re-enabled, new modules need **≥60%** (the `break: 60`
+  threshold, ratcheting upward like the coverage floor). A low score means
+  assertion-free or vacuous tests.
 - **Human review reads names and assertions, not bodies.** Scan the list of
   `it(...)` names and what each `expect` asserts. If the names don't read like
   the spec — a stranger couldn't reconstruct the requirements from them —

@@ -6,6 +6,88 @@
       "path": "src/modules/_example",
       "description": "Reference module. Copy its shape when creating new modules.",
       "allowedImports": []
+    },
+    {
+      "name": "assets",
+      "path": "src/modules/assets",
+      "description": "manifest + loader wrapper",
+      "allowedImports": ["config"],
+      "allowedExternals": ["pixi.js", "vitest", "fast-check"]
+    },
+    {
+      "name": "config",
+      "path": "src/modules/config",
+      "description": "v1 contracts: shared types (tile/tree/goal/task/event) + all tunable numbers, island layout, goal templates, story text",
+      "allowedImports": [],
+      "allowedExternals": ["vitest", "fast-check"]
+    },
+    {
+      "name": "core-app",
+      "path": "src/modules/core-app",
+      "description": "Pixi Application bootstrap (v8 async init), ticker, resize, scene switching",
+      "allowedImports": [
+        "config",
+        "world",
+        "entities",
+        "systems",
+        "render",
+        "ui",
+        "save",
+        "core-viewport",
+        "assets"
+      ],
+      "allowedExternals": ["pixi.js", "vitest", "fast-check"]
+    },
+    {
+      "name": "core-viewport",
+      "path": "src/modules/core-viewport",
+      "description": "pixi-viewport wrapper: pan/zoom/world coords",
+      "allowedImports": ["config"],
+      "allowedExternals": ["pixi.js", "pixi-viewport", "vitest", "fast-check"]
+    },
+    {
+      "name": "entities",
+      "path": "src/modules/entities",
+      "description": "trees, goals, tasks — typed data + factories",
+      "allowedImports": ["config"],
+      "allowedExternals": ["vitest", "fast-check"]
+    },
+    {
+      "name": "render",
+      "path": "src/modules/render",
+      "description": "entity state → sprites",
+      "allowedImports": ["config", "entities", "world", "core-viewport", "assets"],
+      "allowedExternals": ["pixi.js", "vitest", "fast-check"],
+      "gates": "polish"
+    },
+    {
+      "name": "save",
+      "path": "src/modules/save",
+      "description": "Supabase auth + versioned save schema + migrations",
+      "allowedImports": ["config", "world", "entities"],
+      "allowedExternals": ["@supabase/supabase-js", "vitest", "fast-check"]
+    },
+    {
+      "name": "systems",
+      "path": "src/modules/systems",
+      "description": "growth, XP, planting, unlocks — pure functions over world+entities",
+      "allowedImports": ["config", "world", "entities"],
+      "allowedExternals": ["vitest", "fast-check"]
+    },
+    {
+      "name": "ui",
+      "path": "src/modules/ui",
+      "description": "tasks panel, XP bar, modals, dev panel — DOM overlay",
+      "allowedImports": ["config", "entities", "world", "systems"],
+      "allowedExternals": ["vitest", "fast-check"],
+      "gates": "polish"
+    },
+    {
+      "name": "world",
+      "path": "src/modules/world",
+      "description": "island sections/tiles (fog|dead|vibrant) — pure data + logic",
+      "allowedImports": ["config"],
+      "allowedExternals": ["vitest", "fast-check"]
     }
   ]
 }

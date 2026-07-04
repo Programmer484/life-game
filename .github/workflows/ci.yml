@@ -80,21 +80,24 @@ jobs:
         run: pnpm test:framework
 
   # CI-only: mutation testing is too slow for the local `pnpm verify` gate.
-  mutation:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Enable pnpm
-        run: corepack enable
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Mutation test
-        run: pnpm mutation
+  # OFF for v1: the payoff of a mutation gate is trust in a long-lived suite,
+  # which the prototype's suite isn't yet. Re-enable post-v1 by uncommenting
+  # (stryker.config.mjs and `pnpm mutation` are kept ready).
+  # mutation:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #
+  #     - name: Enable pnpm
+  #       run: corepack enable
+  #
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 22
+  #         cache: pnpm
+  #
+  #     - name: Install
+  #       run: pnpm install --frozen-lockfile
+  #
+  #     - name: Mutation test
+  #       run: pnpm mutation

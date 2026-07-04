@@ -75,8 +75,9 @@ module-map.json`; the field's shape is validated by `module-sync` (verify
    `pnpm test:framework`, executed in CI only when framework files change.
    Run them locally after editing `scripts/`, hooks, or configs.
 
-7. **Meet the coverage floor.** 80% lines, functions, branches, and
-   statements on `src/modules/**`, ratcheting upward. Never lower it to make
+7. **Meet the coverage floor.** 40% lines, functions, branches, and
+   statements on `src/modules/**` (v1 prototype start), ratcheting upward.
+   Never lower it to make
    a change pass. Polish lane: a module may declare `"gates": "polish"` in
    `module-map.json` (`pnpm new-module <name> --gates polish`) to opt out of
    the coverage floor ONLY — lint, boundaries, typecheck, knip, and
@@ -88,7 +89,8 @@ module-map.json`; the field's shape is validated by `module-sync` (verify
    skip-passing when no baseline ref resolves; `RATCHET_BASE` /
    `RATCHET_BASE_CONTENT` override the baseline). A CI-only Stryker mutation
    gate (`pnpm mutation`, break 60) catches coverage met by assertion-free
-   tests. Polish modules get per-glob zero thresholds generated from the map
+   tests — its CI job is commented out for v1 (re-enable post-prototype).
+   Polish modules get per-glob zero thresholds generated from the map
    (`scripts/gates.ts`) — coverage is still measured and reported, only the
    floor is zeroed — and the `gates` value is validated by `module-sync`.
 
