@@ -1,0 +1,153 @@
+// @vitest-environment happy-dom
+import { describe, it, expect, vi } from 'vitest';
+import { GOAL_TEMPLATES } from '../../config/index.ts';
+import type { TileCoord } from '../../config/index.ts';
+import type { GameplayState } from '../../systems/index.ts';
+import { createWorld, unlockSection } from '../../world/index.ts';
+import { createPlantingModal } from '../index.ts';
+import type { PlantChoice } from '../index.ts';
+
+/** A gameplay state with no trees and the given sections unlocked. */
+function stateWith(unlockedSections: number[] = []): GameplayState {
+  const world = unlockedSections.reduce((acc, id) => unlockSection(acc, id), createWorld());
+  return { trees: [], goals: {}, world };
+}
+
+function query(el: HTMLElement, testid: string): HTMLElement | null {
+  return el.querySelector<HTMLElement>(`[data-testid="${testid}"]`);
+}
+
+function click(el: HTMLElement | null): void {
+  el?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+}
+
+const TILE: TileCoord = { x: 2, y: 3 };
+
+describe('ui / planting modal', () => {
+  it('is hidden initially and open() shows it with the disabled chat placeholder', () => {
+    const modal = createPlantingModal({ onPlant: () => {} });
+
+    expect(modal.el.dataset['testid']).toBe('planting-modal');
+    expect(modal.isOpen()).toBe(false);
+    expect(modal.el.style.display).toBe('none');
+
+    modal.open(stateWith(), TILE);
+
+    expect(modal.isOpen()).toBe(true);
+    expect(modal.el.style.display).not.toBe('none');
+    const chat = query(modal.el, 'chat-placeholder') as HTMLTextAreaElement | null;
+    expect(chat).not.toBeNull();
+    expect(chat!.disabled).toBe(true);
+    expect(chat!.placeholder.length).toBeGreaterThan(0);
+  });
+
+  it('reveals the template options named from config only after Autofill is activated', () => {
+    const modal = createPlantingModal({ onPlant: () => {} });
+    modal.open(stateWith(), TILE);
+
+    expect(query(modal.el, 'template-sleep')).toBeNull();
+    expect(query(modal.el, 'template-workout')).toBeNull();
+
+    click(query(modal.el, 'autofill'));
+
+    expect(query(modal.el, 'template-sleep')?.textContent).toBe(GOAL_TEMPLATES.sleep.name);
+    expect(query(modal.el, 'template-workout')?.textContent).toBe(GOAL_TEMPLATES.workout.name);
+  });
+
+  it('choosing Sleep plan calls onPlant with the opened tile, sleep, and the selected type, then closes', () => {
+    const onPlant = vi.fn<(choice: PlantChoice) => void>();
+    const modal = createPlantingModal({ onPlant });
+    modal.open(stateWith(), TILE);
+
+    click(query(modal.el, 'autofill'));
+    click(query(modal.el, 'template-sleep'));
+
+    expect(onPlant).toHaveBeenCalledTimes(1);
+    expect(onPlant).toHaveBeenCalledWith({ tile: TILE, templateKey: 'sleep', type: 'A' });
+    expect(modal.isOpen()).toBe(false);
+  });
+
+  it('does not offer type B before the first section unlock and offers it after', () => {
+    const modal = createPlantingModal({ onPlant: () => {} });
+
+    modal.open(stateWith(), TILE);
+    expect(query(modal.el, 'tree-type-a')).not.toBeNull();
+    expect(query(modal.el, 'tree-type-b')).toBeNull();
+    modal.close();
+
+    modal.open(stateWith([2]), TILE);
+    expect(query(modal.el, 'tree-type-a')).not.toBeNull();
+    expect(query(modal.el, 'tree-type-b')).not.toBeNull();
+  });
+
+  it('defaults the selection to type A even when B is offered', () => {
+    const onPlant = vi.fn<(choice: PlantChoice) => void>();
+    const modal = createPlantingModal({ onPlant });
+    modal.open(stateWith([2]), TILE);
+
+    click(query(modal.el, 'autofill'));
+    click(query(modal.el, 'template-workout'));
+
+    expect(onPlant).toHaveBeenCalledWith({ tile: TILE, templateKey: 'workout', type: 'A' });
+  });
+
+  it('plants with type B when the player selects it', () => {
+    const onPlant = vi.fn<(choice: PlantChoice) => void>();
+    const modal = createPlantingModal({ onPlant });
+    modal.open(stateWith([2]), TILE);
+
+    click(query(modal.el, 'tree-type-b'));
+    click(query(modal.el, 'autofill'));
+    click(query(modal.el, 'template-sleep'));
+
+    expect(onPlant).toHaveBeenCalledWith({ tile: TILE, templateKey: 'sleep', type: 'B' });
+  });
+
+  it('Cancel closes the modal without calling onPlant', () => {
+    const onPlant = vi.fn<(choice: PlantChoice) => void>();
+    const modal = createPlantingModal({ onPlant });
+    modal.open(stateWith(), TILE);
+
+    click(query(modal.el, 'modal-cancel'));
+
+    expect(onPlant).not.toHaveBeenCalled();
+    expect(modal.isOpen()).toBe(false);
+  });
+
+  it('re-opening resets the modal: no leftover template list and no stale type selection', () => {
+    const onPlant = vi.fn<(choice: PlantChoice) => void>();
+    const modal = createPlantingModal({ onPlant });
+
+    modal.open(stateWith([2]), TILE);
+    click(query(modal.el, 'tree-type-b'));
+    click(query(modal.el, 'autofill'));
+    expect(query(modal.el, 'template-sleep')).not.toBeNull();
+    modal.close();
+
+    modal.open(stateWith([2]), TILE);
+    expect(query(modal.el, 'template-sleep')).toBeNull();
+    expect(query(modal.el, 'template-workout')).toBeNull();
+
+    click(query(modal.el, 'autofill'));
+    click(query(modal.el, 'template-sleep'));
+    expect(onPlant).toHaveBeenCalledWith({ tile: TILE, templateKey: 'sleep', type: 'A' });
+  });
+
+  it('repeated opens do not duplicate DOM', () => {
+    const modal = createPlantingModal({ onPlant: () => {} });
+    const state = stateWith([2]);
+
+    modal.open(state, TILE);
+    modal.close();
+    modal.open(state, TILE);
+    modal.open(state, TILE);
+    click(query(modal.el, 'autofill'));
+
+    expect(modal.el.querySelectorAll('[data-testid="chat-placeholder"]')).toHaveLength(1);
+    expect(modal.el.querySelectorAll('[data-testid="autofill"]')).toHaveLength(1);
+    expect(modal.el.querySelectorAll('[data-testid="tree-type-a"]')).toHaveLength(1);
+    expect(modal.el.querySelectorAll('[data-testid="tree-type-b"]')).toHaveLength(1);
+    expect(modal.el.querySelectorAll('[data-testid="template-sleep"]')).toHaveLength(1);
+    expect(modal.el.querySelectorAll('[data-testid="modal-cancel"]')).toHaveLength(1);
+  });
+});
