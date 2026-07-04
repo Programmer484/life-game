@@ -1,0 +1,85 @@
+// Meta-tests for `verify --agent`: bounded failure summaries, the
+// .task/last-verify.json snapshot (overwrite, never append), unchanged
+// default-mode behavior, and the apiSurface ledger field. Probe pattern as in
+// enforcement.test.ts, but with its own probe dir (zz_probe_agent) so the two
+// files can't clobber each other when vitest runs them in parallel.
+import { describe, it, expect, afterEach } from 'vitest';
+import { rmSync, readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { run, plantUnformattedProbe, cleanupProbe } from './helpers.ts';
+
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const SNAPSHOT = join(ROOT, '.task/last-verify.json');
+
+function verify(args: string[]) {
+  return run('node', ['scripts/verify.ts', ...args]);
+}
+
+afterEach(() => {
+  cleanupProbe('zz_probe_agent');
+  rmSync(SNAPSHOT, { force: true });
+});
+
+describe('verify --agent: bounded failure output', () => {
+  it('names the failing file, stays bounded, and writes the snapshot', () => {
+    plantUnformattedProbe('zz_probe_agent');
+    const { status, out } = verify(['format', '--agent']);
+    expect(status).not.toBe(0);
+    expect(out).toContain('zz_probe_agent/index.ts');
+    // Bounded: far under a raw prettier/vitest dump.
+    expect(out.trimEnd().split('\n').length).toBeLessThan(80);
+
+    const snap = JSON.parse(readFileSync(SNAPSHOT, 'utf8'));
+    expect(snap.failed).toContain('format');
+    expect(snap.summaryByStep.format.totalErrors).toBeGreaterThan(0);
+  });
+});
+
+describe('verify --agent: snapshot overwrite semantics', () => {
+  it('two runs leave exactly one snapshot document, the latest', () => {
+    plantUnformattedProbe('zz_probe_agent');
+    verify(['format', '--agent']);
+    const first = JSON.parse(readFileSync(SNAPSHOT, 'utf8'));
+    verify(['format', '--agent']);
+    // JSON.parse would throw on an appended second document.
+    const second = JSON.parse(readFileSync(SNAPSHOT, 'utf8'));
+    expect(second.failed).toContain('format');
+    expect(second.ts >= first.ts).toBe(true);
+  });
+});
+
+describe('verify default mode is unchanged', () => {
+  // Sibling test files plant transient zz_* probe modules in the shared
+  // src/modules/, so "clean tree" is only true in the gaps between them.
+  // Retry until a run both starts and ends probe-free (blind retries lose
+  // whenever probes stay planted longer than the retry window).
+  const probesPresent = () =>
+    readdirSync(join(ROOT, 'src/modules')).some((d) => d.startsWith('zz_'));
+  it('exits 0 on a clean tree with no summary block', { timeout: 90_000 }, async () => {
+    let status: number | null = 1;
+    let out = '';
+    const deadline = Date.now() + 75_000;
+    do {
+      while (probesPresent() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 500));
+      ({ status, out } = verify(['format']));
+      // A probe can vanish between the failing run and the probesPresent()
+      // check — the failure output naming a zz_ file is the reliable signal.
+    } while (status !== 0 && (probesPresent() || out.includes('zz_')) && Date.now() < deadline);
+    expect(status).toBe(0);
+    expect(out).toContain('verify: PASS');
+    expect(out).not.toContain('(general)');
+    expect(out).not.toContain('error lines across');
+  });
+});
+
+describe('apiSurface in the run ledger', () => {
+  // retry: enforcement.test.ts deletes edit-log.jsonl in a parallel worker.
+  it('module-sync run appends apiSurface with an _example count', { retry: 2 }, () => {
+    verify(['module-sync']);
+    const lastLine = readFileSync(join(ROOT, 'edit-log.jsonl'), 'utf8').trim().split('\n').at(-1)!;
+    const record = JSON.parse(lastLine);
+    expect(record.kind).toBe('verify');
+    expect(record.apiSurface._example).toBeGreaterThanOrEqual(1);
+  });
+});
