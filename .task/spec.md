@@ -1,48 +1,59 @@
-# S3 · Goals & tasks
+# S4 · Growth system
 
-**Module:** `entities` (src/modules/entities) — this slice touches ONLY this
-module. Types (`Goal`, `Tree`, `TaskState`, `GoalTemplate`,
-`TaskCompletedEvent`) and `GOAL_TEMPLATES` come from `config`. Headless, pure.
+**Module:** `systems` (src/modules/systems) — this slice touches ONLY this
+module. Uses `config` (STAGE_TASKS, TASKS_PER_TREE, types) and `entities`
+(goal helpers) via their `index.ts`. Headless, pure, immutable.
 
 ## Behavior
 
-`entities` owns goal/task/tree data manipulation and template instantiation.
-Immutable updates: functions return new objects, never mutate inputs. No ID
-generation dependency — IDs are caller-supplied strings.
+Consume task-completed events: advance the tree's goal, sync the tree's
+`tasksDone`, derive growth stage, detect completion (complete trees stay
+forever and free their active slot).
 
 ### Public surface (`index.ts`)
 
-- `createGoal(id: string, template: GoalTemplate): Goal` — name from the
-  template, 18 `TaskState`s in template order, all `done: false`.
-- `createTree(id: string, tile: TileCoord, type: TreeType, goalId: string): Tree`
-  — `tasksDone: 0`.
-- `nextTaskIndex(goal): number | undefined` — index of the first not-done
-  task; `undefined` when all 18 are done. (Tasks complete strictly in order —
-  the UI only ever offers the next task.)
-- `completeNextTask(goal): Goal` — marks the next task done; when all tasks
-  are already done, returns the goal unchanged.
-- `tasksDone(goal): number` — count of done tasks.
-- `taskCompletedEvent(treeId: string, taskIndex: number): TaskCompletedEvent`
-  — factory for the event systems consume in S4.
+- `GrowthState` = `{ trees: readonly Tree[]; goals: Readonly<Record<string, Goal>> }`
+- `applyTaskCompleted(state: GrowthState, event: TaskCompletedEvent): GrowthState`
+  — looks up the tree by `event.treeId` and its goal by `tree.goalId`;
+  completes the goal's next task (via entities) and sets the tree's
+  `tasksDone` to the goal's done count. Guards (return state unchanged):
+  unknown treeId; `event.taskIndex !== nextTaskIndex(goal)` (stale/duplicate
+  event); goal already fully done.
+- `stageOf(tree): GrowthStage` — derived from `tasksDone` and STAGE_TASKS
+  cumulatively: stages advance after 3 / 3+4 / 3+4+5 / 3+4+5+6 = 18 tasks
+  (0–2 done → stage 1, 3–6 → 2, 7–11 → 3, 12–17 → 4, 18 → 5).
+- `isComplete(tree): boolean` — `tasksDone >= TASKS_PER_TREE`. Fully grown
+  (stage 5) ⇔ complete.
+- `activeTrees(trees): Tree[]` — the non-complete trees (a complete tree
+  frees its slot; the cap in S5 counts only these).
 
 ## Done when
 
-Tests written FIRST from this spec (names read like the spec):
+Tests written FIRST from this spec.
 
-- createGoal: instantiates the sleep template — 18 tasks, template order,
-  titles/minutes match config, none done, name "Sleep plan" (per template).
-- createGoal: instantiates the workout template the same way.
-- createTree: starts at tasksDone 0 with the given tile/type/goalId.
-- nextTaskIndex: 0 on a fresh goal; advances by one after each completion;
-  undefined when all done.
-- completeNextTask: marks exactly the next task done, does not mutate the
-  input goal; on a fully-done goal returns it unchanged.
-- tasksDone: 0 fresh, n after n completions, 18 when finished.
-- taskCompletedEvent: carries type 'task-completed', treeId, taskIndex.
-- `pnpm verify` green.
+Example tests:
+
+- 3 completed tasks advance a fresh sapling to stage 2 (acceptance check §7).
+- 18 completed tasks make the tree complete (stage 5) and it leaves
+  activeTrees (slot freed).
+- applyTaskCompleted syncs tree.tasksDone with the goal and does not mutate
+  the input state.
+- Stale event (taskIndex ≠ next), unknown treeId, and event on a finished
+  goal each return the state unchanged.
+
+Property tests (fast-check) — the demo-protecting invariants, generic over
+random completion sequences (these three are the ONLY properties for this
+slice):
+
+- Growth stage is monotonically non-decreasing over any event sequence.
+- A single task completion never advances the stage by more than one (no
+  stage is ever skipped).
+- Stage 5 is reached exactly at 18 tasks done — never before, always at 18.
+
+`pnpm verify` green.
 
 ## Out of scope
 
-Growth stages/XP/unlocks (S4/S6), planting validation (S5), focus handling,
-rendering, persistence, demo start state. Everything not listed. No changes
-outside `src/modules/entities/` (plus `.task/`).
+Planting/cap validation (S5), XP/unlocks (S6), UI, rendering, persistence.
+Everything not listed. No changes outside `src/modules/systems/` (plus
+`.task/`).
