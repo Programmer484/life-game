@@ -1,4 +1,5 @@
 import { STORY_BLOCKS } from '../../config/index.ts';
+import { ensureStyles } from './styles.ts';
 
 export interface StoryScreenDeps {
   onFinished: () => void;
@@ -15,36 +16,31 @@ export interface StoryScreen {
  * the screen hides itself. Whether it shows at all is decided by the caller.
  */
 export function createStoryScreen(deps: StoryScreenDeps): StoryScreen {
+  ensureStyles();
   const el = document.createElement('section');
-  el.className = 'story-screen';
+  el.className = 'story-screen lg-modal-backdrop';
   el.dataset['testid'] = 'story-screen';
-  el.style.position = 'fixed';
-  el.style.inset = '0';
-  el.style.background = '#0b0f14';
-  el.style.color = '#e8e6df';
-  el.style.display = 'flex';
-  el.style.flexDirection = 'column';
-  el.style.alignItems = 'center';
-  el.style.justifyContent = 'center';
-  el.style.textAlign = 'center';
-  el.style.padding = '2rem';
-  el.style.fontFamily = 'serif';
+  el.style.background = '#0b0f14'; // opaque: the story hides the scene behind it
+
+  const card = document.createElement('div');
+  card.className = 'lg-modal';
+  card.style.boxShadow = 'none'; // flush against the opaque backdrop
+  card.style.background = 'transparent';
+  card.style.textAlign = 'center';
+  el.appendChild(card);
 
   const block = document.createElement('p');
-  block.className = 'story-block';
+  block.className = 'story-block lg-prose';
   block.dataset['testid'] = 'story-block';
-  block.style.maxWidth = '36rem';
-  block.style.fontSize = '1.125rem';
-  block.style.lineHeight = '1.6';
-  el.appendChild(block);
+  card.appendChild(block);
 
   const next = document.createElement('button');
   next.type = 'button';
-  next.className = 'story-next';
+  next.className = 'story-next lg-btn lg-btn--primary';
   next.dataset['testid'] = 'story-next';
   next.textContent = 'Next';
   next.style.marginTop = '2rem';
-  el.appendChild(next);
+  card.appendChild(next);
 
   let index = 0;
   let finished = false;

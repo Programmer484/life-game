@@ -3,6 +3,7 @@ import type { TaskDef } from '../../config/index.ts';
 import { nextTaskIndex } from '../../entities/index.ts';
 import { focusedTree } from '../../systems/index.ts';
 import type { GameplayState } from '../../systems/index.ts';
+import { ensureStyles } from './styles.ts';
 
 export interface TasksPanelDeps {
   onCompleteTask: (treeId: string, taskIndex: number) => void;
@@ -19,10 +20,10 @@ export interface TasksPanel {
  * never mutates game state itself; it waits for the next `update(state)`.
  */
 export function createTasksPanel(deps: TasksPanelDeps): TasksPanel {
+  ensureStyles();
   const el = document.createElement('section');
-  el.className = 'tasks-panel';
+  el.className = 'tasks-panel lg-panel';
   el.dataset['testid'] = 'tasks-panel';
-  el.style.fontFamily = 'sans-serif';
 
   const body = document.createElement('div');
   body.className = 'tasks-panel-body';
@@ -42,6 +43,7 @@ export function createTasksPanel(deps: TasksPanelDeps): TasksPanel {
     heading.className = 'goal-name';
     heading.dataset['testid'] = 'goal-name';
     heading.textContent = goalName;
+    heading.style.margin = '0 0 var(--lg-space-2)';
 
     const row = document.createElement('label');
     row.className = 'next-task';

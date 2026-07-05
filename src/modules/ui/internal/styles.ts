@@ -141,7 +141,8 @@ const CSS = /* css */ `
   background: var(--lg-accent);
   transition: width 0.3s ease;
 }
-.lg-bar__fill[data-full] {
+.lg-bar__fill[data-full],
+.lg-bar[data-full] .lg-bar__fill {
   background: var(--lg-accent-bright);
   box-shadow: 0 0 8px rgba(158, 202, 78, 0.8);
   animation: lg-bar-pulse 1.2s ease-in-out infinite;
@@ -154,6 +155,23 @@ const CSS = /* css */ `
   50% {
     box-shadow: 0 0 12px rgba(158, 202, 78, 0.9);
   }
+}
+
+.lg-hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  font-family: var(--lg-font);
+}
+.lg-hud > * {
+  position: absolute;
+  pointer-events: auto;
+}
+
+.lg-prose {
+  max-width: 36rem;
+  font-size: 1.125rem;
+  line-height: 1.7;
 }
 `;
 

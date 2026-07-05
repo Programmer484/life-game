@@ -27,6 +27,8 @@ const CLASSES = [
   '.lg-input',
   '.lg-bar',
   '.lg-bar__fill',
+  '.lg-hud',
+  '.lg-prose',
 ];
 
 function styleTags(): NodeListOf<HTMLStyleElement> {
@@ -69,6 +71,15 @@ describe('ensureStyles', () => {
     for (const className of CLASSES) {
       expect(css).toContain(className);
     }
+  });
+
+  it('makes the hud a fixed click-through layer whose children are interactive', () => {
+    ensureStyles();
+    const css = styleTags()[0]!.textContent ?? '';
+
+    expect(css).toMatch(/\.lg-hud\s*{[^}]*position: fixed/);
+    expect(css).toMatch(/\.lg-hud\s*{[^}]*pointer-events: none/);
+    expect(css).toMatch(/\.lg-hud > \*\s*{[^}]*pointer-events: auto/);
   });
 
   it('gives the bar fill a width transition and a [data-full] rule', () => {
