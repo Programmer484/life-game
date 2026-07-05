@@ -1,35 +1,37 @@
-# S5 · Planting system
+# S6 · Progression system
 
 **Module:** `systems` (src/modules/systems) — this slice touches ONLY this
-module (it already imports `world`, `entities`, `config`). Headless, pure,
-immutable.
+module. Headless, pure, immutable. Builds on S5's `GameplayState`.
 
 ## Behavior
 
-Planting validation and execution, plus tree focus. Extends S4's state:
+Fully-grown trees drive XP and section unlocks; the first unlock also makes
+tree type B available.
 
-- `GameplayState` = `GrowthState & { world: World; focusedTreeId?: string }`
-  (keep `GrowthState` as-is; S4 functions keep working on the subset).
+### Rules
+
+- `UNLOCK_COSTS = [4, 8, 16, 32, 64, 128]` are CUMULATIVE totals of fully
+  grown (complete) trees required to unlock sections 2..7. Trees are never
+  removed, so the count only grows. Sections unlock strictly in id order.
+- Unlock trigger (game rule): section k (k=2..7) unlocks when
+  `fullyGrownCount >= UNLOCK_COSTS[k-2]` and section k-1 is already unlocked.
+- XP bar value (display formula, §4.5 verbatim):
+  `progress = (Σ over trees of min(tasksDone, 18) / 18) / unlockCost` where
+  `unlockCost` is the next locked section's cost; clamp to [0, 1]. When all
+  sections are unlocked, progress is 1.
+- Tree type B: available ⇔ at least one section beyond the starting section
+  is unlocked (derived, no extra state field).
 
 ### Public surface (additions to `index.ts`)
 
-- `canPlant(state, tile): { ok: true } | { ok: false; reason: PlantRejection }`
-  with `PlantRejection = 'off-island' | 'fogged' | 'occupied' | 'cap'`:
-  - tile must be on the island and its state `dead` or `vibrant`
-    (fog = locked section → `'fogged'`; not on island → `'off-island'`);
-  - no tree (active OR complete) already on that tile → `'occupied'`;
-  - `activeTrees(state.trees).length < ACTIVE_TREE_CAP` → else `'cap'`
-    (complete trees free their slot and do not count).
-- `plantTree(state, { id, tile, type, goal }): { state: GameplayState; rejected?: PlantRejection }`
-  — validates with `canPlant`; on rejection returns the input state unchanged
-  plus the reason. On success: adds the goal, creates the tree (entities
-  factories), applies `revealAround(world, tile)` (the 3×3 dead→vibrant
-  conversion), and sets `focusedTreeId` to the new tree (most recently
-  planted = default focus).
-- `focusTree(state, treeId): GameplayState` — focuses an ACTIVE tree;
-  focusing a complete or unknown tree returns the state unchanged.
-- `focusedTree(state): Tree | undefined` — the focused tree, or undefined if
-  none / it has completed (complete trees are never presented as focused).
+- `fullyGrownCount(trees): number`
+- `xpProgress(state): number` — the display formula above.
+- `applyProgression(state): GameplayState` — unlocks every section whose
+  threshold is now met (in order; the dev panel can jump multiple), lifting
+  fog via world's `unlockSection` (tiles become dead/plantable). No-op when
+  nothing qualifies. Idempotent.
+- `availableTreeTypes(state): TreeType[]` — `['A']` before the first unlock,
+  `['A', 'B']` after.
 
 ## Done when
 
@@ -37,28 +39,26 @@ Tests written FIRST from this spec.
 
 Example tests (mirror acceptance §7):
 
-- planting is allowed on an unlocked dead tile and on a vibrant tile;
-- planting is blocked on a fogged tile and on an occupied tile (with the
-  matching rejection reasons);
-- a 4th plant while 3 trees are active is rejected with 'cap';
-- completing a tree frees its slot: after one of 3 active trees reaches 18
-  tasks, a new plant succeeds;
-- a successful plant converts the 3×3 around the tile to vibrant and the
-  surrounding dead ring shows up in transitionTiles;
-- a successful plant focuses the new tree; focusTree switches focus between
-  active trees; focusing a complete tree leaves focus unchanged; focusedTree
-  is undefined when the focused tree completes.
+- 4 fully grown trees ⇒ xpProgress reaches 1, applyProgression lifts section
+  2's fog (its tiles become dead), and type B becomes available;
+- 3 fully grown trees ⇒ section 2 stays fogged and only type A is available;
+- unlock progress carries: with 4 fully grown and section 2 unlocked, the bar
+  shows 4/8 = 0.5 toward section 3;
+- partial trees contribute fractionally to xpProgress (e.g. one tree at 9/18
+  adds 0.5 tree-units) but do NOT count toward the unlock trigger;
+- applyProgression is idempotent and immutable; sections unlock in order.
 
 Property test (fast-check) — the demo-protecting invariant (the ONLY property
 for this slice):
 
-- Over any random sequence of plant attempts and task-completion events, the
-  number of active trees never exceeds ACTIVE_TREE_CAP (3).
+- For any fully-grown count n and next locked section with cost c: after
+  applyProgression the section is unlocked ⇔ n ≥ c (the unlock fires exactly
+  at its configured cost, never below it).
 
 `pnpm verify` green.
 
 ## Out of scope
 
-XP/section unlocks/type-B availability (S6), UI/modal, rendering,
-persistence. Everything not listed. No changes outside `src/modules/systems/`
+UI (bar rendering), dev panel, story, persistence, wiring events end-to-end
+(S13). Everything not listed. No changes outside `src/modules/systems/`
 (plus `.task/`).
