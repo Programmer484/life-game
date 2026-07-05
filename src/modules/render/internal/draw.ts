@@ -1,32 +1,34 @@
 // Pixi-touching drawing code: kept thin and untested (polish lane).
 import { Container, Graphics } from 'pixi.js';
-import type { GrowthStage, TileCoord, TreeType } from '../../config/index.ts';
+import type { GrowthStage, TileCoord, TreeType, Vibrancy } from '../../config/index.ts';
 import { TREE_STAGE_COLORS } from '../../assets/index.ts';
 import type { World } from '../../world/index.ts';
-import { tileState, transitionTiles } from '../../world/index.ts';
+import { tileState } from '../../world/index.ts';
 import { TILE_WIDTH, TILE_HEIGHT, tileToScreen } from './iso.ts';
 import { colorForTile } from './tile-color.ts';
 
-/** One Graphics diamond per island tile, filled by tile state. */
-export function drawWorld(world: World): Container {
+/** Per-tile vibrancy precomputed by the controller, keyed `"x,y"`. */
+type VibrancyView = ReadonlyMap<string, Vibrancy>;
+
+/** One Graphics diamond per island tile, filled by fog cover + vibrancy. */
+export function drawWorld(world: World, vibrancy: VibrancyView): Container {
   const container = new Container();
-  redraw(container, world);
+  redraw(container, world, vibrancy);
   return container;
 }
 
 /** Full redraw of an existing world container (fine at this scale). */
-export function updateWorld(container: Container, world: World): void {
+export function updateWorld(container: Container, world: World, vibrancy: VibrancyView): void {
   container.removeChildren().forEach((child) => child.destroy());
-  redraw(container, world);
+  redraw(container, world, vibrancy);
 }
 
-function redraw(container: Container, world: World): void {
-  const transitions = new Set(transitionTiles(world).map(key));
+function redraw(container: Container, world: World, vibrancy: VibrancyView): void {
   for (const section of world.sections) {
     for (const coord of section.tiles) {
       const state = tileState(world, coord);
       if (!state) continue;
-      container.addChild(diamond(coord, colorForTile(state, transitions.has(key(coord)))));
+      container.addChild(diamond(coord, colorForTile(state, vibrancy.get(key(coord)) ?? 0)));
     }
   }
 }

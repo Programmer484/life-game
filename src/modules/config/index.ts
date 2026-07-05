@@ -1,6 +1,7 @@
 // Public surface of the config module. Other modules import ONLY from here.
 export type {
   TileState,
+  Vibrancy,
   TreeType,
   GrowthStage,
   TileCoord,
@@ -19,6 +20,8 @@ export {
   TASKS_PER_TREE,
   REVEAL_SIZE,
   UNLOCK_COSTS,
+  VIBRANCY_MAX,
+  VIBRANCY_CONTRIBUTION,
   ISLAND_LAYOUT,
   STORY_BLOCKS,
   GOAL_TEMPLATES,

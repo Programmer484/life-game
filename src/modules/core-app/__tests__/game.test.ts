@@ -6,7 +6,7 @@ import { GOAL_TEMPLATES, TASKS_PER_TREE, UNLOCK_COSTS } from '../../config/index
 import { createNullGateways, toSave } from '../../save/index.ts';
 import type { Gateways } from '../../save/index.ts';
 import { activeTrees, availableTreeTypes, stageOf, xpProgress } from '../../systems/index.ts';
-import { isSectionUnlocked, tileState, transitionTiles } from '../../world/index.ts';
+import { isSectionUnlocked, tileState } from '../../world/index.ts';
 import { createGame } from '../internal/game.ts';
 import type { Game } from '../internal/game.ts';
 
@@ -121,7 +121,7 @@ describe('planting — placement rules and world conversion', () => {
     expect(game.state().trees).toHaveLength(3);
   });
 
-  it('converts the 3×3 around a plant to vibrant with transition tiles on the border', async () => {
+  it('converts the 3×3 around a plant to vibrant (reveal unchanged by vibrancy)', async () => {
     const game = await signedInGame();
     expect(game.plantAt({ x: 4, y: 4 }, 'sleep', 'A').ok).toBe(true);
     const world = game.state().world;
@@ -130,10 +130,39 @@ describe('planting — placement rules and world conversion', () => {
         expect(tileState(world, { x: 4 + dx, y: 4 + dy })).toBe('vibrant');
       }
     }
-    // A dead tile bordering the new vibrant patch is a transition tile.
-    const transitions = transitionTiles(world).map((tile) => `${tile.x},${tile.y}`);
+    // Tiles outside the reveal stay dead — vibrancy is a separate overlay.
     expect(tileState(world, { x: 5, y: 2 })).toBe('dead');
-    expect(transitions).toContain('5,2');
+  });
+});
+
+describe('vibrancy — per-tile view derived from all trees', () => {
+  it('gives a planted tree vibrancy 3 on its tile, 2 orthogonal, 1 diagonal', async () => {
+    const game = await signedInGame(); // demo sapling at (1,1) — far from (4,4)
+    expect(game.tileVibrancy().get('4,4')).toBe(0);
+    expect(game.plantAt({ x: 4, y: 4 }, 'sleep', 'A').ok).toBe(true);
+    const vibrancy = game.tileVibrancy();
+    expect(vibrancy.get('4,4')).toBe(3); // own tile
+    expect(vibrancy.get('5,4')).toBe(2); // orthogonal, d=1
+    expect(vibrancy.get('5,5')).toBe(1); // diagonal neighbour, d=2
+    // The demo sapling contributes its own pattern too.
+    expect(vibrancy.get('1,1')).toBe(3);
+  });
+
+  it("stacks two trees' contributions cumulatively and clamps at 3", async () => {
+    const game = await signedInGame();
+    expect(game.plantAt({ x: 4, y: 4 }, 'sleep', 'A').ok).toBe(true);
+    expect(game.plantAt({ x: 4, y: 2 }, 'workout', 'A').ok).toBe(true);
+    const vibrancy = game.tileVibrancy();
+    // (3,3) is d=2 from both new trees: 1 + 1 = 2 — more than either alone.
+    expect(vibrancy.get('3,3')).toBe(2);
+    // (4,3) is d=1 from both: 2 + 2 = 4, clamped to 3.
+    expect(vibrancy.get('4,3')).toBe(3);
+  });
+
+  it('counts completed trees forever — vibrancy never regresses', async () => {
+    const game = await signedInGame();
+    expect(game.devPlantFullyGrown({ x: 4, y: 4 }, 'sleep', 'A').ok).toBe(true);
+    expect(game.tileVibrancy().get('4,4')).toBe(3); // stage-5 tree still counts
   });
 });
 

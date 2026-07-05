@@ -13,11 +13,9 @@ import {
   isSectionUnlocked,
   unlockSection,
   revealAround,
-  transitionTiles,
+  vibrancyAt,
+  vibrancyMap,
 } from '../index.ts';
-
-const sortCoords = (coords: TileCoord[]): TileCoord[] =>
-  [...coords].sort((a, b) => a.y - b.y || a.x - b.x);
 
 describe('world · createWorld', () => {
   it('starts every tile of section 1 (unlockedAtStart) as dead', () => {
@@ -133,43 +131,61 @@ describe('world · revealAround', () => {
   });
 });
 
-describe('world · transitionTiles', () => {
-  it('yields exactly the 8-adjacent ring of dead tiles around a revealed 3×3 in a dead field', () => {
-    const world = revealAround(createWorld(), { x: 2, y: 2 });
-    // Vibrant block is (1..3)², so the ring is the border of (0..4)² — 16 tiles,
-    // all inside section 1 and dead.
-    const expected: TileCoord[] = [];
-    for (let y = 0; y <= 4; y++) {
-      for (let x = 0; x <= 4; x++) {
-        if (x === 0 || x === 4 || y === 0 || y === 4) expected.push({ x, y });
-      }
-    }
-    expect(sortCoords(transitionTiles(world))).toEqual(sortCoords(expected));
+describe('world · vibrancyAt', () => {
+  it('returns 0 everywhere with no trees', () => {
+    expect(vibrancyAt({ x: 0, y: 0 }, [])).toBe(0);
+    expect(vibrancyAt({ x: 3, y: 3 }, [])).toBe(0);
   });
 
-  it('yields no transition tiles when nothing is vibrant', () => {
-    expect(transitionTiles(createWorld())).toEqual([]);
-    expect(transitionTiles(unlockSection(createWorld(), 2))).toEqual([]);
+  it('gives a single tree the +3/+2/+1 Manhattan-distance pattern', () => {
+    const trees: TileCoord[] = [{ x: 3, y: 3 }];
+    expect(vibrancyAt({ x: 3, y: 3 }, trees)).toBe(3); // d=0 own tile
+    expect(vibrancyAt({ x: 4, y: 3 }, trees)).toBe(2); // d=1 orthogonal
+    expect(vibrancyAt({ x: 3, y: 2 }, trees)).toBe(2); // d=1 orthogonal
+    expect(vibrancyAt({ x: 5, y: 3 }, trees)).toBe(1); // d=2 straight
+    expect(vibrancyAt({ x: 4, y: 4 }, trees)).toBe(1); // d=2 diagonal neighbour
+    expect(vibrancyAt({ x: 2, y: 2 }, trees)).toBe(1); // d=2 diagonal neighbour
+    expect(vibrancyAt({ x: 6, y: 3 }, trees)).toBe(0); // d=3 out of range
+    expect(vibrancyAt({ x: 5, y: 4 }, trees)).toBe(0); // d=3 out of range
   });
 
-  it('never includes fog tiles in the result', () => {
-    // Reveal at the section-1 corner: vibrant (3..5)² borders fog in
-    // sections 2/3/4; only the dead section-1 tiles may appear.
-    const world = revealAround(createWorld(), { x: 4, y: 4 });
-    const result = transitionTiles(world);
-    for (const coord of result) {
-      expect(tileState(world, coord)).toBe('dead');
-    }
-    expect(sortCoords(result)).toEqual(
-      sortCoords([
-        { x: 2, y: 2 },
-        { x: 3, y: 2 },
-        { x: 4, y: 2 },
-        { x: 5, y: 2 },
-        { x: 2, y: 3 },
-        { x: 2, y: 4 },
-        { x: 2, y: 5 },
-      ]),
-    );
+  it('stacks contributions from multiple trees cumulatively', () => {
+    const trees: TileCoord[] = [
+      { x: 2, y: 2 },
+      { x: 6, y: 2 },
+    ];
+    // (4,2) is d=2 from both trees: 1 + 1 = 2 — more than either alone.
+    expect(vibrancyAt({ x: 4, y: 2 }, trees)).toBe(2);
+    // (3,2) is d=1 from one tree, d=3 from the other: just 2.
+    expect(vibrancyAt({ x: 3, y: 2 }, trees)).toBe(2);
+  });
+
+  it('clamps the cumulative total at 3', () => {
+    const trees: TileCoord[] = [
+      { x: 2, y: 2 },
+      { x: 4, y: 2 },
+    ];
+    expect(vibrancyAt({ x: 3, y: 2 }, trees)).toBe(3); // 2 + 2 = 4 → 3
+    expect(vibrancyAt({ x: 2, y: 2 }, trees)).toBe(3); // 3 + 1 = 4 → 3
+  });
+});
+
+describe('world · vibrancyMap', () => {
+  it('covers every island tile, keyed "x,y", matching vibrancyAt', () => {
+    const world = createWorld();
+    const trees: TileCoord[] = [{ x: 1, y: 1 }];
+    const map = vibrancyMap(world, trees);
+    let tileCount = 0;
+    for (const section of world.sections) tileCount += section.tiles.length;
+    expect(map.size).toBe(tileCount);
+    expect(map.get('1,1')).toBe(3);
+    expect(map.get('2,1')).toBe(2);
+    expect(map.get('2,2')).toBe(1);
+    expect(map.get('4,4')).toBe(0);
+  });
+
+  it('is all zeros with no trees', () => {
+    const map = vibrancyMap(createWorld(), []);
+    for (const value of map.values()) expect(value).toBe(0);
   });
 });

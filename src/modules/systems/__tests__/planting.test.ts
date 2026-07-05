@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { GOAL_TEMPLATES } from '../../config/index.ts';
 import type { TileCoord } from '../../config/index.ts';
 import { createGoal, taskCompletedEvent } from '../../entities/index.ts';
-import { createWorld, tileState, transitionTiles } from '../../world/index.ts';
+import { createWorld, tileState, vibrancyAt } from '../../world/index.ts';
 import { applyTaskCompleted, canPlant, focusTree, focusedTree, plantTree } from '../index.ts';
 import type { GameplayState } from '../index.ts';
 
@@ -108,17 +108,13 @@ describe('systems (planting)', () => {
     }
   });
 
-  it('shows the surrounding dead ring in transitionTiles after a plant', () => {
+  it('yields the +3/+2/+1 vibrancy pattern around a planted tree', () => {
     const { state } = plant(freshGameplay(), 't1', { x: 2, y: 2 });
-    const ring: TileCoord[] = [];
-    for (let y = 0; y <= 4; y++) {
-      for (let x = 0; x <= 4; x++) {
-        if (x === 0 || x === 4 || y === 0 || y === 4) ring.push({ x, y });
-      }
-    }
-    const transitions = transitionTiles(state.world);
-    expect(transitions).toHaveLength(ring.length);
-    expect(transitions).toEqual(expect.arrayContaining(ring));
+    const treeTiles = state.trees.map((tree) => tree.tile);
+    expect(vibrancyAt({ x: 2, y: 2 }, treeTiles)).toBe(3);
+    expect(vibrancyAt({ x: 3, y: 2 }, treeTiles)).toBe(2);
+    expect(vibrancyAt({ x: 3, y: 3 }, treeTiles)).toBe(1); // diagonal, d=2
+    expect(vibrancyAt({ x: 5, y: 2 }, treeTiles)).toBe(0);
   });
 
   it('focuses the newly planted tree', () => {

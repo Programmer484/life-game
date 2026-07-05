@@ -1,7 +1,7 @@
 // Headless game controller: the full v1 event flow with NO Pixi and NO DOM.
 // The thin shell (app.ts) drives it through these methods and subscribes for
 // re-renders; the acceptance tests drive it over the null gateways.
-import type { GrowthStage, TileCoord, TreeType } from '../../config/index.ts';
+import type { GrowthStage, TileCoord, TreeType, Vibrancy } from '../../config/index.ts';
 import { GOAL_TEMPLATES, TASKS_PER_TREE } from '../../config/index.ts';
 import { createGoal, nextTaskIndex, taskCompletedEvent } from '../../entities/index.ts';
 import type { AuthResult, AutosaverTimers, Gateways } from '../../save/index.ts';
@@ -18,7 +18,7 @@ import {
   plantTree,
   stageOf,
 } from '../../systems/index.ts';
-import { createWorld } from '../../world/index.ts';
+import { createWorld, vibrancyMap } from '../../world/index.ts';
 
 export type TemplateKey = keyof typeof GOAL_TEMPLATES;
 
@@ -52,6 +52,11 @@ export interface Game {
   /** Persist any pending autosave immediately (used on reload/teardown). */
   flushSave(): Promise<void>;
   treeViewModels(): TreeViewModel[];
+  /**
+   * Precomputed per-tile vibrancy for render, keyed `"x,y"` over every island
+   * tile. Derived from ALL trees' tiles (any stage — trees are never removed).
+   */
+  tileVibrancy(): ReadonlyMap<string, Vibrancy>;
 }
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
@@ -178,5 +183,10 @@ export function createGame(gateways: Gateways, timers?: AutosaverTimers): Game {
         type: tree.type,
         stage: stageOf(tree),
       })),
+    tileVibrancy: () =>
+      vibrancyMap(
+        state.world,
+        state.trees.map((tree) => tree.tile),
+      ),
   };
 }

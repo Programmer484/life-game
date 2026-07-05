@@ -1,6 +1,11 @@
 // Internal implementation. Deep imports from other modules are blocked by lint.
-import type { SectionDef, TileCoord, TileState } from '../../config/index.ts';
-import { ISLAND_LAYOUT, REVEAL_SIZE } from '../../config/index.ts';
+import type { SectionDef, TileCoord, TileState, Vibrancy } from '../../config/index.ts';
+import {
+  ISLAND_LAYOUT,
+  REVEAL_SIZE,
+  VIBRANCY_CONTRIBUTION,
+  VIBRANCY_MAX,
+} from '../../config/index.ts';
 
 interface Tile {
   readonly state: TileState;
@@ -76,24 +81,31 @@ export function revealAround(world: World, center: TileCoord): World {
   return changed ? { ...world, tiles } : world;
 }
 
-/** Dead tiles bordering at least one vibrant tile (8-neighbour adjacency). */
-export function transitionTiles(world: World): TileCoord[] {
-  const result: TileCoord[] = [];
+/**
+ * Vibrancy of one tile: the sum of every tree's contribution by orthogonal
+ * (Manhattan) distance — +3 own tile, +2 one step, +1 two steps (a diagonal
+ * neighbour is distance 2) — clamped to VIBRANCY_MAX. Trees are plain coords
+ * so world stays free of entity knowledge.
+ */
+export function vibrancyAt(tile: TileCoord, treeTiles: readonly TileCoord[]): Vibrancy {
+  let total = 0;
+  for (const tree of treeTiles) {
+    const distance = Math.abs(tree.x - tile.x) + Math.abs(tree.y - tile.y);
+    total += VIBRANCY_CONTRIBUTION[distance] ?? 0;
+  }
+  return Math.min(total, VIBRANCY_MAX) as Vibrancy;
+}
+
+/** Vibrancy for every island tile, keyed `"x,y"`. Fog cover is render's call. */
+export function vibrancyMap(
+  world: World,
+  treeTiles: readonly TileCoord[],
+): ReadonlyMap<string, Vibrancy> {
+  const result = new Map<string, Vibrancy>();
   for (const section of world.sections) {
     for (const coord of section.tiles) {
-      if (tileState(world, coord) !== 'dead') continue;
-      if (hasVibrantNeighbour(world, coord)) result.push({ ...coord });
+      result.set(key(coord), vibrancyAt(coord, treeTiles));
     }
   }
   return result;
-}
-
-function hasVibrantNeighbour(world: World, coord: TileCoord): boolean {
-  for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
-      if (dx === 0 && dy === 0) continue;
-      if (tileState(world, { x: coord.x + dx, y: coord.y + dy }) === 'vibrant') return true;
-    }
-  }
-  return false;
 }

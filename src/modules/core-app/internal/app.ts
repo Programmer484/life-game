@@ -77,7 +77,7 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
   const viewport = createViewport(app);
   app.stage.addChild(viewport);
 
-  const worldLayer = drawWorld(game.state().world);
+  const worldLayer = drawWorld(game.state().world, game.tileVibrancy());
   const treeLayer = new Container();
   viewport.addChild(worldLayer, treeLayer);
 
@@ -158,7 +158,7 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
   // ── Re-render everything on every controller change ───────────────────────
   const rerender = (): void => {
     const state = game.state();
-    updateWorld(worldLayer, state.world);
+    updateWorld(worldLayer, state.world, game.tileVibrancy());
     updateTrees(treeLayer, game.treeViewModels());
     tasksPanel.update(state);
     xpBar.update(state);

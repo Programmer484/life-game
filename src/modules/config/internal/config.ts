@@ -4,6 +4,9 @@
 
 export type TileState = 'fog' | 'dead' | 'vibrant';
 
+/** Per-tile vibrancy: 0 = dead land, 3 = fully vibrant. */
+export type Vibrancy = 0 | 1 | 2 | 3;
+
 export type TreeType = 'A' | 'B';
 
 export type GrowthStage = 1 | 2 | 3 | 4 | 5;
@@ -68,6 +71,16 @@ export const REVEAL_SIZE = { width: 3, height: 3 } as const;
 
 /** Fully-grown trees needed to unlock sections 2..7. */
 export const UNLOCK_COSTS = [4, 8, 16, 32, 64, 128] as const;
+
+/** Highest vibrancy a tile can reach; totals above this clamp down. */
+export const VIBRANCY_MAX = 3;
+
+/**
+ * A tree's vibrancy contribution, indexed by orthogonal (Manhattan) distance:
+ * +3 on its own tile, +2 one step away, +1 two steps away. Cumulative across
+ * trees.
+ */
+export const VIBRANCY_CONTRIBUTION = [3, 2, 1] as const;
 
 // ── Island layout ────────────────────────────────────────────────────────────
 

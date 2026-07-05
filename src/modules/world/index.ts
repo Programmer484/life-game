@@ -7,5 +7,6 @@ export {
   isSectionUnlocked,
   unlockSection,
   revealAround,
-  transitionTiles,
+  vibrancyAt,
+  vibrancyMap,
 } from './internal/world.ts';
