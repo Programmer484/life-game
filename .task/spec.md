@@ -1,52 +1,48 @@
-# S10 · Reflect placeholder + dev panel (UI)
+# S11 · Intro story (UI)
 
 **Module:** `ui` (src/modules/ui) — this slice touches ONLY this module.
-Same rails as S7–S9: plain DOM, no Pixi, happy-dom pragma tests, intent out
-via callbacks only.
+Same rails as S7–S10: plain DOM, no Pixi, happy-dom pragma tests.
 
 ## Behavior
 
-Two small overlay pieces:
+The first-run story screen: a full-screen text sequence of the 6 story
+blocks, one **Next** button, no visuals, no skip. Whether it shows at all is
+decided elsewhere (the persisted story-seen flag arrives with S12/S13 —
+this component just plays the sequence when mounted).
 
-### Reflect button
+### Public surface (additions to `index.ts`)
 
-- `createReflectButton(): { el: HTMLElement }` — a visible button labeled
-  "Reflect". It does NOTHING yet (placeholder): clicking must not throw and
-  must not emit anything. `data-testid="reflect-button"`.
+- `createStoryScreen(deps: { onFinished: () => void }): StoryScreen`
+- `StoryScreen = { el: HTMLElement }`
 
-### Dev panel (always visible in v1)
+### Rules
 
-- `createDevPanel(deps: { onSkipStage: () => void; onPlantFullyGrown: () => void }): DevPanel`
-- `DevPanel = { el: HTMLElement; update(state: GameplayState): void }`
-- Two buttons:
-  - **"Skip to next tree stage"** (`data-testid="dev-skip-stage"`) — emits
-    `onSkipStage()`; S13 wires it to auto-complete the focused tree's
-    remaining tasks in its CURRENT stage. Disabled (HTML `disabled`) when
-    `focusedTree(state)` is undefined — there is nothing to skip.
-  - **"Plant fully grown tree"** (`data-testid="dev-plant-grown"`) — emits
-    `onPlantFullyGrown()`; S13 wires it to the normal modal flow producing an
-    18/18 complete tree. Always enabled.
-- The panel itself never mutates state. `data-testid="dev-panel"`. Minimal
-  inline placeholder styling; repeated updates don't duplicate DOM.
+- Full-screen overlay (`position: fixed; inset: 0`, opaque background,
+  readable centered text). `data-testid="story-screen"`, block text in
+  `data-testid="story-block"`, button `data-testid="story-next"`.
+- Text comes from `STORY_BLOCKS` (config) — never hard-coded; shown one
+  block at a time starting at block 1, rendered verbatim.
+- The ONLY control is the Next button. Clicking it advances to the next
+  block; after the 6th block's Next, `onFinished()` fires exactly once and
+  the screen hides itself (display none or removed content).
+- No skip control, no block counter requirement, no keyboard shortcuts.
+- Clicks after finish do nothing (no double onFinished).
 
 ## Done when
 
 DOM tests written FIRST (happy-dom pragma):
 
-- reflect button renders, is visible, and clicking it does nothing (no
-  throw, no callback surface at all);
-- dev panel renders both buttons with their labels;
-- clicking skip calls onSkipStage once; clicking plant calls
-  onPlantFullyGrown once;
-- skip is disabled when no tree is focused (fresh state) and enabled when an
-  active tree is focused; it becomes disabled again once the focused tree
-  completes;
-- repeated updates do not duplicate DOM.
+- shows the first STORY_BLOCKS entry verbatim from config on mount;
+- Next advances through all 6 blocks in order (verbatim text each step);
+- there is no control other than Next (no skip);
+- after Next on the 6th block, onFinished fires exactly once and the screen
+  is hidden;
+- further interaction after finish does not re-fire onFinished.
 
 `pnpm verify` green (ui is polish-lane).
 
 ## Out of scope
 
-The actual skip/plant logic (S13 wiring), styling, hiding the dev panel
-behind a flag (it is always visible in v1). Everything not listed. No changes
-outside `src/modules/ui/` (plus `.task/`).
+The story-seen persistence flag and first-run gating (S12/S13), auth, save,
+styling polish. Everything not listed. No changes outside `src/modules/ui/`
+(plus `.task/`).

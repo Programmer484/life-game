@@ -4,6 +4,8 @@ export { createDevPanel } from './internal/dev-panel.ts';
 export type { PlantChoice, PlantingModal, PlantingModalDeps } from './internal/planting-modal.ts';
 export { createPlantingModal } from './internal/planting-modal.ts';
 export { createReflectButton } from './internal/reflect-button.ts';
+export type { StoryScreen, StoryScreenDeps } from './internal/story-screen.ts';
+export { createStoryScreen } from './internal/story-screen.ts';
 export type { TasksPanel, TasksPanelDeps } from './internal/tasks-panel.ts';
 export { createTasksPanel } from './internal/tasks-panel.ts';
 export type { XpBar } from './internal/xp-bar.ts';
