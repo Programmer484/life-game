@@ -1,61 +1,52 @@
-# S9 · Planting modal + Autofill (UI)
+# S10 · Reflect placeholder + dev panel (UI)
 
 **Module:** `ui` (src/modules/ui) — this slice touches ONLY this module.
-Same rails as S7/S8: plain DOM, no Pixi, happy-dom pragma tests, state read
-via public surfaces, intent out via callbacks.
+Same rails as S7–S9: plain DOM, no Pixi, happy-dom pragma tests, intent out
+via callbacks only.
 
 ## Behavior
 
-The modal that opens when the player plants on a tile. It is a placeholder
-for a future goal-setting chatbot: a DISABLED chat area + an **Autofill**
-button offering the two goal templates.
+Two small overlay pieces:
 
-### Public surface (additions to `index.ts`)
+### Reflect button
 
-- `createPlantingModal(deps: { onPlant: (choice: PlantChoice) => void }): PlantingModal`
-- `PlantChoice = { tile: TileCoord; templateKey: 'sleep' | 'workout'; type: TreeType }`
-- `PlantingModal = { el: HTMLElement; open(state: GameplayState, tile: TileCoord): void; close(): void; isOpen(): boolean }`
+- `createReflectButton(): { el: HTMLElement }` — a visible button labeled
+  "Reflect". It does NOTHING yet (placeholder): clicking must not throw and
+  must not emit anything. `data-testid="reflect-button"`.
 
-### Rules
+### Dev panel (always visible in v1)
 
-- Hidden until `open(state, tile)`; `close()` hides it again.
-- Contents when open:
-  - a visibly disabled chat area (`textarea` or similar with `disabled`,
-    placeholder text hinting at the future chatbot);
-  - a tree-type selector: type A always offered; type B offered ONLY when
-    `availableTreeTypes(state)` includes `'B'` (defaults to A);
-  - an **Autofill** button; activating it reveals the two template options —
-    **Sleep plan** / **Workout plan** (names from `GOAL_TEMPLATES` in config,
-    not hard-coded);
-  - choosing a template calls `onPlant({ tile, templateKey, type })` with the
-    tile passed to `open` and the selected type, then closes the modal —
-    the modal does NOT create goals or mutate state (S13 wires `onPlant` to
-    the systems planting flow);
-  - a Cancel control that closes without calling `onPlant`.
-- Re-opening resets the modal (no leftover template list / stale selection);
-  repeated opens don't duplicate DOM or leak listeners.
-- Stable hooks: `data-testid="planting-modal"`, `"chat-placeholder"`,
-  `"autofill"`, `"template-sleep"`, `"template-workout"`, `"tree-type-a"`,
-  `"tree-type-b"`, `"modal-cancel"`. Minimal inline placeholder styling.
+- `createDevPanel(deps: { onSkipStage: () => void; onPlantFullyGrown: () => void }): DevPanel`
+- `DevPanel = { el: HTMLElement; update(state: GameplayState): void }`
+- Two buttons:
+  - **"Skip to next tree stage"** (`data-testid="dev-skip-stage"`) — emits
+    `onSkipStage()`; S13 wires it to auto-complete the focused tree's
+    remaining tasks in its CURRENT stage. Disabled (HTML `disabled`) when
+    `focusedTree(state)` is undefined — there is nothing to skip.
+  - **"Plant fully grown tree"** (`data-testid="dev-plant-grown"`) — emits
+    `onPlantFullyGrown()`; S13 wires it to the normal modal flow producing an
+    18/18 complete tree. Always enabled.
+- The panel itself never mutates state. `data-testid="dev-panel"`. Minimal
+  inline placeholder styling; repeated updates don't duplicate DOM.
 
 ## Done when
 
 DOM tests written FIRST (happy-dom pragma):
 
-- hidden initially; open() shows it with the disabled chat placeholder;
-- Autofill reveals the Sleep plan and Workout plan options with names from
-  config;
-- choosing Sleep plan calls onPlant with the opened tile, 'sleep', and the
-  selected type, and closes the modal;
-- type B is not offered before the first section unlock and is offered after
-  (state with a second section unlocked); default selection is A;
-- Cancel closes without calling onPlant;
-- re-opening resets the modal and repeated opens do not duplicate DOM.
+- reflect button renders, is visible, and clicking it does nothing (no
+  throw, no callback surface at all);
+- dev panel renders both buttons with their labels;
+- clicking skip calls onSkipStage once; clicking plant calls
+  onPlantFullyGrown once;
+- skip is disabled when no tree is focused (fresh state) and enabled when an
+  active tree is focused; it becomes disabled again once the focused tree
+  completes;
+- repeated updates do not duplicate DOM.
 
 `pnpm verify` green (ui is polish-lane).
 
 ## Out of scope
 
-Tile-click detection, actually planting (systems), dev panel, story,
-persistence. Everything not listed. No changes outside `src/modules/ui/`
-(plus `.task/`).
+The actual skip/plant logic (S13 wiring), styling, hiding the dev panel
+behind a flag (it is always visible in v1). Everything not listed. No changes
+outside `src/modules/ui/` (plus `.task/`).
