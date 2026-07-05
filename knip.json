@@ -7,6 +7,5 @@
     "src/modules/*/__tests__/**/*.ts",
     "test/**/*.test.ts"
   ],
-  "project": ["src/**/*.ts", "scripts/**/*.ts", ".claude/hooks/**/*.ts", "test/**/*.ts"],
-  "ignoreDependencies": ["vite"]
+  "project": ["src/**/*.ts", "scripts/**/*.ts", ".claude/hooks/**/*.ts", "test/**/*.ts"]
 }

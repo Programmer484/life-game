@@ -1,6 +1,5 @@
 // Public surface of the core-viewport module. Other modules import ONLY from here.
-import { greet } from './internal/core-viewport.ts';
-
-export function coreViewport(input: string): string {
-  return greet(input);
-}
+// Only this module may import pixi-viewport; the Viewport type is re-exported
+// so consumers (core-app) never touch the package directly.
+export type { Viewport } from 'pixi-viewport';
+export { createViewport } from './internal/viewport.ts';

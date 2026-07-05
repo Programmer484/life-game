@@ -1,58 +1,74 @@
-# S1 · Island data & land logic
+# S2 · World render + panning
 
-**Module:** `world` (src/modules/world) — this slice touches ONLY this module.
-Types/constants come from the `config` module (already in allowedImports).
-Headless: no Pixi, no DOM, no I/O.
+**Modules:** `render`, `core-app`, `core-viewport`, `assets` — plus the app
+shell at the repo root (`index.html`, `src/main.ts`, `package.json` scripts,
+`knip.json` entry if knip complains). PRD sanctions the 4-module scope for
+this slice.
 
 ## Behavior
 
-`world` owns the land: which tile is in which section, each tile's state, and
-the state transitions. It is pure data + pure functions. Prefer immutable
-updates (functions return a new World); never mutate config's ISLAND_LAYOUT.
+Draw the S1 world as placeholder-art tiles on a pannable 2.5D canvas.
 
-### Public surface (`index.ts`)
+### Dependencies (add as prod deps)
 
-- `World` type — sections + per-tile state, built from `ISLAND_LAYOUT`.
-- `createWorld(): World` — every tile of a section with `unlockedAtStart`
-  starts `'dead'`; every tile of a locked section starts `'fog'`.
-- `tileState(world, coord): TileState | undefined` — undefined for coords not
-  on the island.
-- `sectionOf(world, coord): number | undefined`
-- `isSectionUnlocked(world, sectionId): boolean` — true when its tiles are no
-  longer fog.
-- `unlockSection(world, sectionId): World` — that section's tiles go
-  `fog → dead`. Tiles of other sections are untouched. Unlocking an already
-  unlocked section is a no-op.
-- `revealAround(world, center: TileCoord): World` — converts the
-  `REVEAL_SIZE` (3×3) area centered on `center` from `dead → vibrant`.
-  Rules: only `dead` tiles change; `fog` tiles are NOT revealed; coords off
-  the island are ignored; `vibrant` stays `vibrant`.
-- `transitionTiles(world): TileCoord[]` — the dead tiles that border at least
-  one vibrant tile (8-neighbour adjacency: orthogonal + diagonal). These are
-  rendered as half-dead later; this slice only derives the set.
+`pixi.js@^8` and `pixi-viewport@^6`. PixiJS 8 init is async:
+`const app = new Application(); await app.init({ ... })` — NOT the v7
+constructor pattern. `core-viewport` is the ONLY module importing
+`pixi-viewport` (already enforced by allowedExternals; add the new packages
+to the relevant modules' `allowedExternals` is NOT needed — they are already
+listed).
 
-### Invariants (enforced by the API shape — no regressing functions exist)
+### `assets`
 
-- Land never regresses: no public function turns vibrant → dead or dead → fog.
+Placeholder art manifest: exported color constants per tile state —
+fog (near-black), dead (dark sludge brown), half-dead transition (desaturated
+mix), vibrant (living green) — plus tree-stage colors for later slices
+(stages 1–5, type A greens / type B teals). No image loading in v1; keep the
+loader wrapper trivial.
+
+### `render`
+
+- Pure geometry helper (internal, unit-tested): grid `TileCoord` → screen
+  position for a 2.5D look — isometric 2:1 diamonds (tile width 2×height).
+- `drawWorld(world): Container` — one Graphics diamond per island tile,
+  filled by tile state; tiles in `transitionTiles(world)` get the half-dead
+  color. Returns a Pixi Container.
+- `updateWorld(container, world)` or redraw-equivalent so later slices can
+  re-render after state changes (full redraw is fine at this scale).
+
+### `core-viewport`
+
+`createViewport(app): Viewport` — pixi-viewport with `.drag()` enabled
+(click-drag panning). Nothing else in v1 (no zoom requirement, wheel/pinch
+optional). Expose what render/core-app need: add content, world size.
+
+### `core-app`
+
+`startApp(canvasHost: HTMLElement)` — async: Pixi 8 `app.init` with
+resize-to-window, attach canvas, create viewport, `drawWorld(createWorld())`,
+add to viewport, center the island in view.
+
+### App shell (root)
+
+- `index.html` + `src/main.ts` calling `startApp(document.body)` (or a
+  #app div).
+- `package.json`: add `"dev": "vite"`, `"build": "vite build"`,
+  `"preview": "vite preview"`.
 
 ## Done when
 
-Tests written FIRST from this spec (names read like the spec):
-
-- createWorld: section-1 tiles dead, locked-section tiles fog, off-island
-  coords undefined.
-- unlockSection: exactly the target section's fog turns dead; other sections
-  untouched; idempotent.
-- revealAround: full 3×3 turns vibrant on interior dead land; fog neighbours
-  are untouched; off-island cells ignored; already-vibrant cells stay; a
-  second overlapping reveal only adds.
-- transitionTiles: a revealed 3×3 in a dead field yields exactly the ring of
-  dead tiles around it (8-adjacency); no transition tiles when nothing is
-  vibrant; fog tiles never appear in the result.
-- `pnpm verify` green (coverage floor 40 applies to this module).
+- `pnpm dev` serves a jagged island: section 1 dead-brown, sections 2–7 under
+  near-black fog, and click-drag pans the world. (Verify manually with
+  `pnpm build` succeeding; a browser smoke test is NOT part of the gate.)
+- Unit tests written FIRST for the pure parts: iso projection math
+  (round-trips, 2:1 ratio, distinct coords → distinct positions) and
+  state→color mapping incl. transition tiles. Do NOT fight WebGL/jsdom:
+  Pixi-touching code stays thin and untested (render is polish-lane;
+  core-app/core-viewport thin wrappers are acceptable uncovered — the 40
+  floor is aggregate and config+world carry it).
+- `pnpm verify` green and `pnpm build` succeeds.
 
 ## Out of scope
 
-Everything not listed: no trees/goals/tasks, no XP/unlock triggers (S6 calls
-`unlockSection`), no rendering, no persistence, no demo start state, no
-changes outside `src/modules/world/` (plus `.task/`).
+Trees/sprites for trees, UI overlay, clicks on tiles, zoom polish, story,
+persistence. Everything not listed.

@@ -1,6 +1,2 @@
 // Public surface of the assets module. Other modules import ONLY from here.
-import { greet } from './internal/assets.ts';
-
-export function assets(input: string): string {
-  return greet(input);
-}
+export { TILE_COLORS, TREE_STAGE_COLORS } from './internal/palette.ts';
