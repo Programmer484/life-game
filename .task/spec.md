@@ -1,57 +1,47 @@
-# S7 · Tasks panel + focus switching (UI)
+# S8 · XP bar (UI)
 
-**Module:** `ui` (src/modules/ui) — this slice touches ONLY this module (plus
-adding the `happy-dom` devDependency for DOM tests if not present). `ui` is a
-DOM-overlay module: plain DOM APIs, NO Pixi, no framework. It reads state via
-`systems`/`entities`/`config` public surfaces and pushes user intent out
-through callbacks — it never mutates game state itself.
+**Module:** `ui` (src/modules/ui) — this slice touches ONLY this module.
+Same rails as S7: plain DOM, no Pixi, reads state via public surfaces,
+happy-dom pragma tests.
 
 ## Behavior
 
-The immediate-tasks panel: always shows the FOCUSED tree's NEXT task only.
+A horizontal XP bar showing progress toward the next section unlock.
 
-### Public surface (`index.ts`)
+### Public surface (additions to `index.ts`)
 
-- `createTasksPanel(deps: { onCompleteTask: (treeId: string, taskIndex: number) => void }): TasksPanel`
-- `TasksPanel = { el: HTMLElement; update(state: GameplayState): void }`
+- `createXpBar(): XpBar` with
+  `XpBar = { el: HTMLElement; update(state: GameplayState): void }`
 
 ### Rules
 
-- `update(state)` renders from `focusedTree(state)` + its goal:
-  - a focused active tree ⇒ show the goal name, the next task's title and
-    estimated minutes, and an UNCHECKED checkbox;
-  - checking the checkbox calls `onCompleteTask(treeId, nextTaskIndex)` —
-    the panel does NOT change state; it waits for the next `update(state)`;
-  - no focused tree (none planted, unknown, or the focused tree completed) ⇒
-    the panel renders an empty/idle body. Complete trees never appear.
-- Repeated `update` calls must not stack duplicate DOM or leak listeners
-  (re-render the panel body each call).
-- Give stable class names / data-testids so tests and later styling can hook
-  in (e.g. `data-testid="tasks-panel"`, `"next-task-title"`,
-  `"next-task-checkbox"`). Minimal inline styling only — placeholder look.
+- `update(state)` sets the bar's fill fraction from `xpProgress(state)`
+  (systems): fill width `${progress * 100}%`, clamped [0,100].
+- Bar full (progress ≥ 1) ⇔ the unlock condition is met — add a `data-full`
+  attribute (or `is-full` class) when full so S13/styling can react.
+- Show a small numeric label: fully-grown count vs next cost (e.g. `4 / 8`)
+  from `fullyGrownCount(state.trees)` and the next locked section's cost from
+  `UNLOCK_COSTS`; when everything is unlocked, label reads `MAX`.
+- Repeated updates re-render without duplicating DOM or leaking listeners.
+- Stable hooks: `data-testid="xp-bar"`, `"xp-bar-fill"`, `"xp-bar-label"`.
+  Minimal inline placeholder styling.
 
 ## Done when
 
-DOM tests written FIRST (vitest + happy-dom via a
-`// @vitest-environment happy-dom` pragma in the test file; add `happy-dom`
-as a devDependency — it is NOT imported by module code, so allowedExternals
-stays untouched):
+DOM tests written FIRST (happy-dom pragma):
 
-- shows the focused tree's next task title, minutes, and goal name;
-- checking the checkbox calls onCompleteTask with the treeId and the next
-  task index, and does not itself alter the rendered task;
-- after update with the advanced state, the panel shows the following task;
-- shows the idle body when nothing is focused;
-- shows the idle body when the focused tree has completed (complete trees
-  never appear);
+- fill width reflects xpProgress (0 for no trees; 50% for 4 fully grown with
+  section 2 already unlocked — 4/8 toward section 3);
+- the full marker appears exactly when progress reaches 1 (4 fully grown,
+  nothing unlocked yet) and is absent below it;
+- the label shows fully-grown count vs next cost, and MAX when all sections
+  are unlocked;
 - repeated updates do not duplicate DOM nodes.
 
-`pnpm verify` green (ui is polish-lane — no coverage floor, all other gates
-apply).
+`pnpm verify` green (ui is polish-lane).
 
 ## Out of scope
 
-XP bar (S8), planting modal (S9), dev panel/reflect (S10), canvas
-click-to-focus wiring and mounting into the page (S13), styling polish.
-Everything not listed. No changes outside `src/modules/ui/` + package.json
-devDep (plus `.task/`).
+Triggering the unlock (systems/S13 wiring), animations, planting modal, dev
+panel, styling polish. Everything not listed. No changes outside
+`src/modules/ui/` (plus `.task/`).
