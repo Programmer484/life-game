@@ -1,64 +1,57 @@
-# S6 · Progression system
+# S7 · Tasks panel + focus switching (UI)
 
-**Module:** `systems` (src/modules/systems) — this slice touches ONLY this
-module. Headless, pure, immutable. Builds on S5's `GameplayState`.
+**Module:** `ui` (src/modules/ui) — this slice touches ONLY this module (plus
+adding the `happy-dom` devDependency for DOM tests if not present). `ui` is a
+DOM-overlay module: plain DOM APIs, NO Pixi, no framework. It reads state via
+`systems`/`entities`/`config` public surfaces and pushes user intent out
+through callbacks — it never mutates game state itself.
 
 ## Behavior
 
-Fully-grown trees drive XP and section unlocks; the first unlock also makes
-tree type B available.
+The immediate-tasks panel: always shows the FOCUSED tree's NEXT task only.
+
+### Public surface (`index.ts`)
+
+- `createTasksPanel(deps: { onCompleteTask: (treeId: string, taskIndex: number) => void }): TasksPanel`
+- `TasksPanel = { el: HTMLElement; update(state: GameplayState): void }`
 
 ### Rules
 
-- `UNLOCK_COSTS = [4, 8, 16, 32, 64, 128]` are CUMULATIVE totals of fully
-  grown (complete) trees required to unlock sections 2..7. Trees are never
-  removed, so the count only grows. Sections unlock strictly in id order.
-- Unlock trigger (game rule): section k (k=2..7) unlocks when
-  `fullyGrownCount >= UNLOCK_COSTS[k-2]` and section k-1 is already unlocked.
-- XP bar value (display formula, §4.5 verbatim):
-  `progress = (Σ over trees of min(tasksDone, 18) / 18) / unlockCost` where
-  `unlockCost` is the next locked section's cost; clamp to [0, 1]. When all
-  sections are unlocked, progress is 1.
-- Tree type B: available ⇔ at least one section beyond the starting section
-  is unlocked (derived, no extra state field).
-
-### Public surface (additions to `index.ts`)
-
-- `fullyGrownCount(trees): number`
-- `xpProgress(state): number` — the display formula above.
-- `applyProgression(state): GameplayState` — unlocks every section whose
-  threshold is now met (in order; the dev panel can jump multiple), lifting
-  fog via world's `unlockSection` (tiles become dead/plantable). No-op when
-  nothing qualifies. Idempotent.
-- `availableTreeTypes(state): TreeType[]` — `['A']` before the first unlock,
-  `['A', 'B']` after.
+- `update(state)` renders from `focusedTree(state)` + its goal:
+  - a focused active tree ⇒ show the goal name, the next task's title and
+    estimated minutes, and an UNCHECKED checkbox;
+  - checking the checkbox calls `onCompleteTask(treeId, nextTaskIndex)` —
+    the panel does NOT change state; it waits for the next `update(state)`;
+  - no focused tree (none planted, unknown, or the focused tree completed) ⇒
+    the panel renders an empty/idle body. Complete trees never appear.
+- Repeated `update` calls must not stack duplicate DOM or leak listeners
+  (re-render the panel body each call).
+- Give stable class names / data-testids so tests and later styling can hook
+  in (e.g. `data-testid="tasks-panel"`, `"next-task-title"`,
+  `"next-task-checkbox"`). Minimal inline styling only — placeholder look.
 
 ## Done when
 
-Tests written FIRST from this spec.
+DOM tests written FIRST (vitest + happy-dom via a
+`// @vitest-environment happy-dom` pragma in the test file; add `happy-dom`
+as a devDependency — it is NOT imported by module code, so allowedExternals
+stays untouched):
 
-Example tests (mirror acceptance §7):
+- shows the focused tree's next task title, minutes, and goal name;
+- checking the checkbox calls onCompleteTask with the treeId and the next
+  task index, and does not itself alter the rendered task;
+- after update with the advanced state, the panel shows the following task;
+- shows the idle body when nothing is focused;
+- shows the idle body when the focused tree has completed (complete trees
+  never appear);
+- repeated updates do not duplicate DOM nodes.
 
-- 4 fully grown trees ⇒ xpProgress reaches 1, applyProgression lifts section
-  2's fog (its tiles become dead), and type B becomes available;
-- 3 fully grown trees ⇒ section 2 stays fogged and only type A is available;
-- unlock progress carries: with 4 fully grown and section 2 unlocked, the bar
-  shows 4/8 = 0.5 toward section 3;
-- partial trees contribute fractionally to xpProgress (e.g. one tree at 9/18
-  adds 0.5 tree-units) but do NOT count toward the unlock trigger;
-- applyProgression is idempotent and immutable; sections unlock in order.
-
-Property test (fast-check) — the demo-protecting invariant (the ONLY property
-for this slice):
-
-- For any fully-grown count n and next locked section with cost c: after
-  applyProgression the section is unlocked ⇔ n ≥ c (the unlock fires exactly
-  at its configured cost, never below it).
-
-`pnpm verify` green.
+`pnpm verify` green (ui is polish-lane — no coverage floor, all other gates
+apply).
 
 ## Out of scope
 
-UI (bar rendering), dev panel, story, persistence, wiring events end-to-end
-(S13). Everything not listed. No changes outside `src/modules/systems/`
-(plus `.task/`).
+XP bar (S8), planting modal (S9), dev panel/reflect (S10), canvas
+click-to-focus wiring and mounting into the page (S13), styling polish.
+Everything not listed. No changes outside `src/modules/ui/` + package.json
+devDep (plus `.task/`).
