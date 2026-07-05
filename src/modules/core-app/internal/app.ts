@@ -2,6 +2,7 @@
 // decision lives in game.ts — this file only wires DOM/Pixi events to the
 // controller and re-renders on its subscribe ticks.
 import { Application, Container } from 'pixi.js';
+import { loadArt } from '../../assets/index.ts';
 import { createViewport } from '../../core-viewport/index.ts';
 import { drawWorld, screenToTile, updateTrees, updateWorld } from '../../render/index.ts';
 import type { Gateways } from '../../save/index.ts';
@@ -77,7 +78,8 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
   const viewport = createViewport(app);
   app.stage.addChild(viewport);
 
-  const worldLayer = drawWorld(game.state().world, game.tileVibrancy());
+  const textures = await loadArt();
+  const worldLayer = drawWorld(game.state().world, game.tileVibrancy(), textures);
   const treeLayer = new Container();
   viewport.addChild(worldLayer, treeLayer);
 
@@ -158,8 +160,8 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
   // ── Re-render everything on every controller change ───────────────────────
   const rerender = (): void => {
     const state = game.state();
-    updateWorld(worldLayer, state.world, game.tileVibrancy());
-    updateTrees(treeLayer, game.treeViewModels());
+    updateWorld(worldLayer, state.world, game.tileVibrancy(), textures);
+    updateTrees(treeLayer, game.treeViewModels(), textures);
     tasksPanel.update(state);
     xpBar.update(state);
     devPanel.update(state);

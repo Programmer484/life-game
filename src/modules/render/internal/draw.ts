@@ -1,55 +1,60 @@
 // Pixi-touching drawing code: kept thin and untested (polish lane).
-import { Container, Graphics } from 'pixi.js';
+import { Container, Sprite } from 'pixi.js';
+import type { ArtTextures } from '../../assets/index.ts';
 import type { GrowthStage, TileCoord, TreeType, Vibrancy } from '../../config/index.ts';
-import { TREE_STAGE_COLORS } from '../../assets/index.ts';
 import type { World } from '../../world/index.ts';
 import { tileState } from '../../world/index.ts';
 import { TILE_WIDTH, TILE_HEIGHT, tileToScreen } from './iso.ts';
-import { colorForTile } from './tile-color.ts';
+import { textureKeyForTile, type TileTextureKey } from './texture-key.ts';
 
 /** Per-tile vibrancy precomputed by the controller, keyed `"x,y"`. */
 type VibrancyView = ReadonlyMap<string, Vibrancy>;
 
-/** One Graphics diamond per island tile, filled by fog cover + vibrancy. */
-export function drawWorld(world: World, vibrancy: VibrancyView): Container {
+/** One tile sprite per island tile, art picked by fog cover + vibrancy. */
+export function drawWorld(world: World, vibrancy: VibrancyView, textures: ArtTextures): Container {
   const container = new Container();
-  redraw(container, world, vibrancy);
+  redraw(container, world, vibrancy, textures);
   return container;
 }
 
 /** Full redraw of an existing world container (fine at this scale). */
-export function updateWorld(container: Container, world: World, vibrancy: VibrancyView): void {
+export function updateWorld(
+  container: Container,
+  world: World,
+  vibrancy: VibrancyView,
+  textures: ArtTextures,
+): void {
   container.removeChildren().forEach((child) => child.destroy());
-  redraw(container, world, vibrancy);
+  redraw(container, world, vibrancy, textures);
 }
 
-function redraw(container: Container, world: World, vibrancy: VibrancyView): void {
+function redraw(
+  container: Container,
+  world: World,
+  vibrancy: VibrancyView,
+  textures: ArtTextures,
+): void {
   for (const section of world.sections) {
     for (const coord of section.tiles) {
       const state = tileState(world, coord);
       if (!state) continue;
-      container.addChild(diamond(coord, colorForTile(state, vibrancy.get(key(coord)) ?? 0)));
+      const key = textureKeyForTile(state, vibrancy.get(coordKey(coord)) ?? 0);
+      container.addChild(tileSprite(coord, key, textures));
     }
   }
 }
 
-function diamond(coord: TileCoord, color: number): Graphics {
+function tileSprite(coord: TileCoord, key: TileTextureKey, textures: ArtTextures): Sprite {
+  const sprite = new Sprite(key.kind === 'fog' ? textures.fog : textures.tile[key.vibrancy]);
+  sprite.anchor.set(0.5, 0.5);
+  sprite.width = TILE_WIDTH;
+  sprite.height = TILE_HEIGHT;
   const { x, y } = tileToScreen(coord);
-  return new Graphics()
-    .poly([
-      x,
-      y - TILE_HEIGHT / 2,
-      x + TILE_WIDTH / 2,
-      y,
-      x,
-      y + TILE_HEIGHT / 2,
-      x - TILE_WIDTH / 2,
-      y,
-    ])
-    .fill(color);
+  sprite.position.set(x, y);
+  return sprite;
 }
 
-function key(coord: TileCoord): string {
+function coordKey(coord: TileCoord): string {
   return `${coord.x},${coord.y}`;
 }
 
@@ -60,18 +65,28 @@ export interface TreeMarker {
   stage: GrowthStage;
 }
 
-/** Full redraw of the tree layer: one stage-scaled, stage-colored disc per tree. */
-export function updateTrees(container: Container, trees: readonly TreeMarker[]): void {
+/**
+ * Uniform tree sprite scale: the 384px-tall source canvases carry the growth
+ * ladder baked in, so one factor for every stage keeps relative sizes — a
+ * stage-5 tree reads about two tiles (~96px) tall on screen.
+ */
+const TREE_SCALE = 96 / 384;
+
+/** Full redraw of the tree layer: one art sprite per tree, y-sorted for depth. */
+export function updateTrees(
+  container: Container,
+  trees: readonly TreeMarker[],
+  textures: ArtTextures,
+): void {
+  container.sortableChildren = true;
   container.removeChildren().forEach((child) => child.destroy());
   for (const tree of trees) {
     const { x, y } = tileToScreen(tree.tile);
-    const color = TREE_STAGE_COLORS[tree.type][tree.stage - 1] ?? TREE_STAGE_COLORS[tree.type][0];
-    const radius = 4 + tree.stage * 2.5;
-    container.addChild(
-      new Graphics()
-        .circle(x, y - TILE_HEIGHT / 4, radius)
-        .fill(color)
-        .stroke({ color: 0x10131a, width: 1.5 }),
-    );
+    const sprite = new Sprite(textures.tree[tree.type][tree.stage]);
+    sprite.anchor.set(0.5, 1);
+    sprite.scale.set(TREE_SCALE);
+    sprite.position.set(x, y);
+    sprite.zIndex = y;
+    container.addChild(sprite);
   }
 }
