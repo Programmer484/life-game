@@ -1,21 +1,169 @@
-// Pixi 8 bootstrap (async init): kept thin and untested (see .task/spec.md).
-import { Application } from 'pixi.js';
-import { createWorld } from '../../world/index.ts';
-import { drawWorld } from '../../render/index.ts';
+// Pixi/DOM shell: kept thin and untested (see .task/spec.md). Every game
+// decision lives in game.ts — this file only wires DOM/Pixi events to the
+// controller and re-renders on its subscribe ticks.
+import { Application, Container } from 'pixi.js';
 import { createViewport } from '../../core-viewport/index.ts';
+import { drawWorld, screenToTile, updateTrees, updateWorld } from '../../render/index.ts';
+import type { Gateways } from '../../save/index.ts';
+import { createNullGateways, createSupabaseGateways } from '../../save/index.ts';
+import {
+  createAuthScreen,
+  createDevPanel,
+  createPlantingModal,
+  createReflectButton,
+  createStoryScreen,
+  createTasksPanel,
+  createXpBar,
+} from '../../ui/index.ts';
+import type { Game } from './game.ts';
+import { createGame } from './game.ts';
 
-/** Boot Pixi, mount the canvas, and show the island centered in a pannable view. */
-export async function startApp(canvasHost: HTMLElement): Promise<void> {
+/** Supabase when both env vars are present; the null gateways otherwise. */
+function chooseGateways(): Gateways {
+  const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+  const url = env['VITE_SUPABASE_URL'];
+  const anonKey = env['VITE_SUPABASE_ANON_KEY'];
+  if (url !== undefined && url !== '' && anonKey !== undefined && anonKey !== '') {
+    console.info('[life-game] persistence: Supabase gateways');
+    return createSupabaseGateways(url, anonKey);
+  }
+  console.info('[life-game] persistence: in-memory null gateways (dev fallback)');
+  return createNullGateways();
+}
+
+/** Boot the shell: auth screen → (first run) story → island scene. */
+export async function startApp(host: HTMLElement): Promise<void> {
+  const game = createGame(chooseGateways());
+
+  let entered = false;
+  const enter = (): void => {
+    if (entered) return;
+    entered = true;
+    auth.hide();
+    if (!game.storySeen()) {
+      const story = createStoryScreen({
+        onFinished: () => {
+          game.finishStory();
+        },
+      });
+      host.appendChild(story.el);
+    }
+    void startIsland(host, game);
+  };
+
+  const auth = createAuthScreen({
+    onSignIn: (email, password) => {
+      void game.signIn(email, password).then((result) => {
+        if (result.ok) enter();
+        else auth.showError(result.error);
+      });
+    },
+    onSignUp: (email, password) => {
+      void game.signUp(email, password).then((result) => {
+        if (result.ok) enter();
+        else auth.showError(result.error);
+      });
+    },
+  });
+  host.appendChild(auth.el);
+}
+
+/** The island scene: world + tree markers in a pannable viewport + overlay UI. */
+async function startIsland(host: HTMLElement, game: Game): Promise<void> {
   const app = new Application();
   await app.init({ resizeTo: window, background: 0x08080c, antialias: true });
-  canvasHost.appendChild(app.canvas);
+  host.appendChild(app.canvas);
 
   const viewport = createViewport(app);
   app.stage.addChild(viewport);
 
-  const island = drawWorld(createWorld());
-  viewport.addChild(island);
+  const worldLayer = drawWorld(game.state().world);
+  const treeLayer = new Container();
+  viewport.addChild(worldLayer, treeLayer);
 
-  const bounds = island.getLocalBounds();
+  const bounds = worldLayer.getLocalBounds();
   viewport.moveCenter(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+
+  // ── DOM overlay ────────────────────────────────────────────────────────────
+  const overlay = document.createElement('div');
+  overlay.style.position = 'fixed';
+  overlay.style.inset = '0';
+  overlay.style.pointerEvents = 'none';
+  host.appendChild(overlay);
+
+  const dock = (el: HTMLElement, position: Partial<CSSStyleDeclaration>): void => {
+    el.style.position = 'absolute';
+    el.style.pointerEvents = 'auto';
+    Object.assign(el.style, position);
+    overlay.appendChild(el);
+  };
+
+  const tasksPanel = createTasksPanel({
+    onCompleteTask: () => {
+      game.completeNextTask();
+    },
+  });
+  tasksPanel.el.style.background = 'rgba(10, 14, 20, 0.85)';
+  tasksPanel.el.style.color = '#e8e6df';
+  tasksPanel.el.style.padding = '12px';
+  tasksPanel.el.style.maxWidth = '320px';
+  dock(tasksPanel.el, { top: '16px', right: '16px' });
+
+  const xpBar = createXpBar();
+  dock(xpBar.el, { top: '16px', left: '50%', transform: 'translateX(-50%)' });
+
+  const reflect = createReflectButton();
+  dock(reflect.el, { bottom: '16px', right: '16px' });
+
+  // Dev "plant fully grown" arms a flag; the NEXT modal-confirmed plant goes
+  // through devPlantFullyGrown instead of plantAt (normal modal flow).
+  let plantGrownArmed = false;
+  const devPanel = createDevPanel({
+    onSkipStage: () => {
+      game.devSkipStage();
+    },
+    onPlantFullyGrown: () => {
+      plantGrownArmed = true;
+    },
+  });
+  devPanel.el.style.background = 'rgba(10, 14, 20, 0.85)';
+  devPanel.el.style.color = '#e8e6df';
+  devPanel.el.style.padding = '8px';
+  dock(devPanel.el, { bottom: '16px', left: '16px' });
+
+  const modal = createPlantingModal({
+    onPlant: ({ tile, templateKey, type }) => {
+      const grown = plantGrownArmed;
+      plantGrownArmed = false;
+      if (grown) game.devPlantFullyGrown(tile, templateKey, type);
+      else game.plantAt(tile, templateKey, type);
+    },
+  });
+  dock(modal.el, { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
+
+  // ── Clicks: tap a tree to focus it; tap plantable ground to plant ─────────
+  viewport.on('clicked', (event: { world: { x: number; y: number } }) => {
+    const tile = screenToTile({ x: event.world.x, y: event.world.y });
+    const state = game.state();
+    const tree = state.trees.find(
+      (candidate) => candidate.tile.x === tile.x && candidate.tile.y === tile.y,
+    );
+    if (tree) {
+      game.focusTree(tree.id);
+      return;
+    }
+    if (game.canPlantAt(tile).ok) modal.open(state, tile);
+  });
+
+  // ── Re-render everything on every controller change ───────────────────────
+  const rerender = (): void => {
+    const state = game.state();
+    updateWorld(worldLayer, state.world);
+    updateTrees(treeLayer, game.treeViewModels());
+    tasksPanel.update(state);
+    xpBar.update(state);
+    devPanel.update(state);
+  };
+  game.subscribe(rerender);
+  rerender();
 }

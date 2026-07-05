@@ -1,6 +1,7 @@
 // Pixi-touching drawing code: kept thin and untested (polish lane).
 import { Container, Graphics } from 'pixi.js';
-import type { TileCoord } from '../../config/index.ts';
+import type { GrowthStage, TileCoord, TreeType } from '../../config/index.ts';
+import { TREE_STAGE_COLORS } from '../../assets/index.ts';
 import type { World } from '../../world/index.ts';
 import { tileState, transitionTiles } from '../../world/index.ts';
 import { TILE_WIDTH, TILE_HEIGHT, tileToScreen } from './iso.ts';
@@ -48,4 +49,27 @@ function diamond(coord: TileCoord, color: number): Graphics {
 
 function key(coord: TileCoord): string {
   return `${coord.x},${coord.y}`;
+}
+
+/** Precomputed marker data — game logic (stage math) stays out of render. */
+export interface TreeMarker {
+  tile: TileCoord;
+  type: TreeType;
+  stage: GrowthStage;
+}
+
+/** Full redraw of the tree layer: one stage-scaled, stage-colored disc per tree. */
+export function updateTrees(container: Container, trees: readonly TreeMarker[]): void {
+  container.removeChildren().forEach((child) => child.destroy());
+  for (const tree of trees) {
+    const { x, y } = tileToScreen(tree.tile);
+    const color = TREE_STAGE_COLORS[tree.type][tree.stage - 1] ?? TREE_STAGE_COLORS[tree.type][0];
+    const radius = 4 + tree.stage * 2.5;
+    container.addChild(
+      new Graphics()
+        .circle(x, y - TILE_HEIGHT / 4, radius)
+        .fill(color)
+        .stroke({ color: 0x10131a, width: 1.5 }),
+    );
+  }
 }

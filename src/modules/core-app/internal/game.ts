@@ -1,0 +1,182 @@
+// Headless game controller: the full v1 event flow with NO Pixi and NO DOM.
+// The thin shell (app.ts) drives it through these methods and subscribes for
+// re-renders; the acceptance tests drive it over the null gateways.
+import type { GrowthStage, TileCoord, TreeType } from '../../config/index.ts';
+import { GOAL_TEMPLATES, TASKS_PER_TREE } from '../../config/index.ts';
+import { createGoal, nextTaskIndex, taskCompletedEvent } from '../../entities/index.ts';
+import type { AuthResult, AutosaverTimers, Gateways } from '../../save/index.ts';
+import { createAutosaver, loadOrCreate } from '../../save/index.ts';
+import type { GameplayState, PlantRejection } from '../../systems/index.ts';
+import {
+  activeTrees,
+  applyProgression,
+  applyTaskCompleted,
+  canPlant,
+  focusTree as applyFocus,
+  focusedTree,
+  isComplete,
+  plantTree,
+  stageOf,
+} from '../../systems/index.ts';
+import { createWorld } from '../../world/index.ts';
+
+export type TemplateKey = keyof typeof GOAL_TEMPLATES;
+
+export type PlantOutcome = { ok: true; treeId: string } | { ok: false; reason: PlantRejection };
+
+/** Precomputed marker data for render — keeps game logic out of render. */
+export interface TreeViewModel {
+  id: string;
+  tile: TileCoord;
+  type: TreeType;
+  stage: GrowthStage;
+}
+
+export interface Game {
+  state(): GameplayState;
+  /** Listener runs after every state change; returns an unsubscribe. */
+  subscribe(listener: () => void): () => void;
+  signIn(email: string, password: string): Promise<AuthResult>;
+  signUp(email: string, password: string): Promise<AuthResult>;
+  storySeen(): boolean;
+  finishStory(): void;
+  /** Complete the focused tree's next task; no-op without a focused tree. */
+  completeNextTask(): void;
+  plantAt(tile: TileCoord, templateKey: TemplateKey, type: TreeType): PlantOutcome;
+  canPlantAt(tile: TileCoord): ReturnType<typeof canPlant>;
+  focusTree(id: string): void;
+  /** Dev: complete the focused tree's remaining tasks in its CURRENT stage. */
+  devSkipStage(): void;
+  /** Dev: the normal plant flow, then all 18 tasks completed (PRD shortcut). */
+  devPlantFullyGrown(tile: TileCoord, templateKey: TemplateKey, type: TreeType): PlantOutcome;
+  /** Persist any pending autosave immediately (used on reload/teardown). */
+  flushSave(): Promise<void>;
+  treeViewModels(): TreeViewModel[];
+}
+
+const AUTOSAVE_DEBOUNCE_MS = 800;
+
+export function createGame(gateways: Gateways, timers?: AutosaverTimers): Game {
+  let state: GameplayState = { world: createWorld(), trees: [], goals: {} };
+  let seenStory = false;
+  const autosaver = createAutosaver(gateways.store, AUTOSAVE_DEBOUNCE_MS, timers);
+  const listeners = new Set<() => void>();
+
+  function notify(): void {
+    for (const listener of listeners) listener();
+  }
+
+  function persist(): void {
+    autosaver.schedule({
+      world: state.world,
+      trees: state.trees,
+      goals: state.goals,
+      storySeen: seenStory,
+    });
+  }
+
+  async function hydrate(): Promise<void> {
+    const loaded = await loadOrCreate(gateways.store);
+    // Focus defaults to the most recently planted active tree (save order is
+    // plant order) — for the demo state, the preplanted sapling.
+    const active = activeTrees(loaded.trees);
+    state = {
+      world: loaded.world,
+      trees: loaded.trees,
+      goals: loaded.goals,
+      focusedTreeId: active[active.length - 1]?.id,
+    };
+    seenStory = loaded.storySeen;
+    notify();
+  }
+
+  async function authenticate(attempt: Promise<AuthResult>): Promise<AuthResult> {
+    const result = await attempt;
+    if (result.ok) await hydrate();
+    return result;
+  }
+
+  /** Complete `treeId`'s next task; apply growth + progression + autosave. */
+  function completeFor(treeId: string): void {
+    const tree = state.trees.find((candidate) => candidate.id === treeId);
+    if (!tree || isComplete(tree)) return;
+    const goal = state.goals[tree.goalId];
+    if (!goal) return;
+    const next = nextTaskIndex(goal);
+    if (next === undefined) return;
+    const grown = applyTaskCompleted(state, taskCompletedEvent(tree.id, next));
+    state = applyProgression({ ...state, trees: grown.trees, goals: grown.goals });
+    persist();
+    notify();
+  }
+
+  function plantAt(tile: TileCoord, templateKey: TemplateKey, type: TreeType): PlantOutcome {
+    const serial = String(state.trees.length + 1);
+    const goal = createGoal(`goal-${serial}`, GOAL_TEMPLATES[templateKey]);
+    const planted = plantTree(state, { id: `tree-${serial}`, tile, type, goal });
+    if (planted.rejected !== undefined) return { ok: false, reason: planted.rejected };
+    state = applyProgression(planted.state);
+    persist();
+    notify();
+    return { ok: true, treeId: `tree-${serial}` };
+  }
+
+  return {
+    state: () => state,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    signIn: (email, password) => authenticate(gateways.auth.signIn(email, password)),
+    signUp: (email, password) => authenticate(gateways.auth.signUp(email, password)),
+    storySeen: () => seenStory,
+    finishStory() {
+      if (seenStory) return;
+      seenStory = true;
+      persist();
+      notify();
+    },
+    completeNextTask() {
+      const tree = focusedTree(state);
+      if (tree) completeFor(tree.id);
+    },
+    plantAt,
+    canPlantAt: (tile) => canPlant(state, tile),
+    focusTree(id) {
+      const next = applyFocus(state, id);
+      if (next === state) return;
+      state = next;
+      notify();
+    },
+    devSkipStage() {
+      let tree = focusedTree(state);
+      if (!tree) return;
+      const treeId = tree.id;
+      const startStage = stageOf(tree);
+      while (tree && !isComplete(tree) && stageOf(tree) === startStage) {
+        const before = tree.tasksDone;
+        completeFor(treeId);
+        tree = state.trees.find((candidate) => candidate.id === treeId);
+        if (tree && tree.tasksDone === before) return; // guard against stalls
+      }
+    },
+    devPlantFullyGrown(tile, templateKey, type) {
+      const previousFocus = state.focusedTreeId;
+      const outcome = plantAt(tile, templateKey, type);
+      if (!outcome.ok) return outcome;
+      for (let i = 0; i < TASKS_PER_TREE; i++) completeFor(outcome.treeId);
+      // The finished tree cannot stay focused — restore the previous focus.
+      state = { ...state, focusedTreeId: previousFocus };
+      notify();
+      return outcome;
+    },
+    flushSave: () => autosaver.flush(),
+    treeViewModels: () =>
+      state.trees.map((tree) => ({
+        id: tree.id,
+        tile: { ...tree.tile },
+        type: tree.type,
+        stage: stageOf(tree),
+      })),
+  };
+}
