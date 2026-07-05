@@ -1,4 +1,171 @@
 // Internal implementation. Deep imports from other modules are blocked by lint.
-export function greet(input: string): string {
-  return `[config] ${input}`;
+
+// ── Shared contract types ────────────────────────────────────────────────────
+
+export type TileState = 'fog' | 'dead' | 'vibrant';
+
+export type TreeType = 'A' | 'B';
+
+export type GrowthStage = 1 | 2 | 3 | 4 | 5;
+
+export interface TileCoord {
+  x: number;
+  y: number;
 }
+
+export interface TaskDef {
+  title: string;
+  estimatedMinutes: number;
+}
+
+export type TaskState = TaskDef & { done: boolean };
+
+/** Ordered list of 18 tasks. */
+export interface Goal {
+  id: string;
+  name: string;
+  tasks: TaskState[];
+}
+
+export interface Tree {
+  id: string;
+  tile: TileCoord;
+  type: TreeType;
+  goalId: string;
+  tasksDone: number;
+}
+
+export interface TaskCompletedEvent {
+  type: 'task-completed';
+  treeId: string;
+  taskIndex: number;
+}
+
+export interface SectionDef {
+  id: number;
+  unlockedAtStart: boolean;
+  tiles: TileCoord[];
+}
+
+/** Exactly 18 tasks. */
+export interface GoalTemplate {
+  name: string;
+  tasks: TaskDef[];
+}
+
+// ── Tunable numbers ──────────────────────────────────────────────────────────
+
+export const ACTIVE_TREE_CAP = 3;
+
+/** Tasks to advance stage 1→2, 2→3, 3→4, 4→5. */
+export const STAGE_TASKS = [3, 4, 5, 6] as const;
+
+/** Must equal the sum of STAGE_TASKS. */
+export const TASKS_PER_TREE = 18;
+
+/** The 3×3 dead→vibrant reveal. */
+export const REVEAL_SIZE = { width: 3, height: 3 } as const;
+
+/** Fully-grown trees needed to unlock sections 2..7. */
+export const UNLOCK_COSTS = [4, 8, 16, 32, 64, 128] as const;
+
+// ── Island layout ────────────────────────────────────────────────────────────
+
+/** Expand an inclusive rectangle of grid coords into a tile list. */
+function rectTiles(x0: number, x1: number, y0: number, y1: number): TileCoord[] {
+  const tiles: TileCoord[] = [];
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      tiles.push({ x, y });
+    }
+  }
+  return tiles;
+}
+
+/**
+ * Hard-coded jagged floating island: 7 contiguous, mutually adjacent
+ * sections. Blocks are offset from one another so the union of all tiles is
+ * jagged, never a filled rectangle.
+ *
+ *            ┌──6──┐
+ *          ┌─┴──┬──┴┐
+ *         ┌5  1 │ 2 ├─┐
+ *         └─┬───┼───┤7│
+ *           │ 3 │ 4 ├─┘
+ *           └───┴───┘
+ */
+export const ISLAND_LAYOUT: SectionDef[] = [
+  { id: 1, unlockedAtStart: true, tiles: rectTiles(0, 5, 0, 5) }, // 36
+  { id: 2, unlockedAtStart: false, tiles: rectTiles(6, 11, 0, 5) }, // 36
+  { id: 3, unlockedAtStart: false, tiles: rectTiles(0, 5, 6, 11) }, // 36
+  { id: 4, unlockedAtStart: false, tiles: rectTiles(6, 11, 6, 11) }, // 36
+  { id: 5, unlockedAtStart: false, tiles: rectTiles(-6, -1, 1, 6) }, // 36
+  { id: 6, unlockedAtStart: false, tiles: rectTiles(1, 8, -5, -1) }, // 40
+  { id: 7, unlockedAtStart: false, tiles: rectTiles(12, 17, 2, 7) }, // 36
+];
+
+// ── Story ────────────────────────────────────────────────────────────────────
+
+export const STORY_BLOCKS: string[] = [
+  'Long ago, the island was a living jewel — rolling green tiles, groves heavy with fruit, rivers of light. All of it was tended by a goddess who loved the world as a mother loves a newborn, walking the land each day to coax every seed into bloom.',
+  'But the world was young, and the young grow. As the island learned to hold its own shape, the goddess came less often — a visit each season, then each year, trusting her creation to stand on its own.',
+  'And in the quiet she left behind, a darkness began to seep in — a cold fog, a creeping sludge. It was temptation; it was the small surrenders and unkept promises that ask for nothing yet take everything.',
+  "At first it was only a stain at the island's edge, and whenever it spread too far the goddess would return and cleanse the land with her light — and for a while the world remembered how to shine.",
+  'But her visits grew rarer still, until one day they stopped altogether. With no one to push back the dark, the fog swallowed the groves, the rivers dimmed, and the island slowly withered into silence.',
+  'So it remained through a long age of night… until you arrive. Where your feet touch the earth, one tree stands green and the tiles around it warm back to color — a single patch of living light in a drowned world. You are the seed of life. The rest is up to you.',
+];
+
+// ── Goal templates ───────────────────────────────────────────────────────────
+
+function task(title: string, estimatedMinutes: number): TaskDef {
+  return { title, estimatedMinutes };
+}
+
+export const GOAL_TEMPLATES: { sleep: GoalTemplate; workout: GoalTemplate } = {
+  sleep: {
+    name: 'Sleep plan',
+    tasks: [
+      task('Estimate your bed/wake times for the past week — set a baseline', 15),
+      task('Pick your target sleep window and write down your why', 15),
+      task('Set a nightly wind-down alarm 45 min before bed', 15),
+      task('Bedroom audit: blackout fixes, cover/remove light sources', 30),
+      task('Move phone charging outside the bedroom', 15),
+      task('Set a caffeine cutoff (none after 2 pm) + pick a replacement drink', 15),
+      task('Write a 3-step wind-down routine', 20),
+      task('Night 1: follow the wind-down routine + hit your sleep window; log it', 15),
+      task('Night 2: follow the wind-down routine + hit your sleep window; log it', 15),
+      task('Night 3: follow the wind-down routine + hit your sleep window; log it', 15),
+      task('Night 4: follow the wind-down routine + hit your sleep window; log it', 15),
+      task('Night 5: follow the wind-down routine + hit your sleep window; log it', 15),
+      task('Night 6: hit your sleep window; log it', 15),
+      task('Night 7: hit your sleep window; log it', 15),
+      task('Night 8: hit your sleep window; log it', 15),
+      task('Night 9: hit your sleep window; log it', 15),
+      task('Night 10: hit your sleep window; log it', 15),
+      task('Review the log: biggest blocker + one adjustment going forward', 20),
+    ],
+  },
+  workout: {
+    name: 'Workout plan',
+    tasks: [
+      task('Pick your focus (strength/cardio) + block 3 weekly slots in your calendar', 15),
+      task('Choose a beginner program template', 20),
+      task('Prep gear & space — shoes, mat, gym access', 30),
+      task('Week 1: workout 1 at easy effort', 45),
+      task('Week 1: workout 2 at easy effort', 45),
+      task('Week 1: workout 3 at easy effort', 45),
+      task('Recovery walk + note how the week felt', 20),
+      task('Week 2: workout 4 with small progression', 45),
+      task('Week 2: workout 5 with small progression', 45),
+      task('Week 2: workout 6 with small progression', 45),
+      task('Mobility / stretch session', 20),
+      task("Log numbers + set next week's targets", 15),
+      task('Week 3: workout 7', 45),
+      task('Week 3: workout 8', 45),
+      task('Week 3: workout 9', 45),
+      task('Active recovery session', 30),
+      task('Progress check vs week 1 — reps/weights/pace', 15),
+      task('Plan the next 4 weeks', 30),
+    ],
+  },
+};
