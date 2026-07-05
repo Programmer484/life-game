@@ -34,3 +34,6 @@ reports
 
 # Live git worktrees (agent isolation + local merges). Never commit these.
 .claude/worktrees/
+
+# Generated image scratch (mcp-image tool output; regenerable, never the deliverable).
+output/
