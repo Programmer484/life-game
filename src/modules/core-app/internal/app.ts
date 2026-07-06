@@ -1,4 +1,4 @@
-// Pixi/DOM shell: kept thin and untested (see .task/spec.md). Every game
+// Pixi/DOM shell: kept thin and untested by design. Every game
 // decision lives in game.ts — this file only wires DOM/Pixi events to the
 // controller and re-renders on its subscribe ticks.
 import { Application, Container } from 'pixi.js';

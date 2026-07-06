@@ -1,4 +1,4 @@
-// Pixi-touching wrapper: kept thin and untested (see .task/spec.md).
+// Pixi-touching wrapper: kept thin and untested by design (shell gate).
 import { Viewport } from 'pixi-viewport';
 import type { Application } from 'pixi.js';
 

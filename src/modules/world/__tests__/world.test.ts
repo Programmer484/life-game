@@ -1,4 +1,4 @@
-// Tests written FIRST from .task/spec.md (S1 · Island data & land logic).
+// Tests written FIRST from the S1 spec (Island data & land logic).
 // Layout facts used below (from config's ISLAND_LAYOUT):
 //   section 1 (unlockedAtStart) = x 0..5, y 0..5
 //   section 2 (locked)          = x 6..11, y 0..5

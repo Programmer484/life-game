@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config';
-import { polishCoverageThresholds } from './scripts/gates.ts';
+import { COVERAGE_FLOOR, moduleCoverageThresholds } from './scripts/gates.ts';
 
 export default defineConfig({
   test: {
@@ -13,19 +13,18 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/modules/**/*.ts'],
       exclude: ['src/modules/**/__tests__/**', 'src/modules/**/*.{test,spec}.ts'],
-      // Coverage floor on src/modules/**. verify fails below it.
-      // v1 prototype: start at 40, ratchet up as modules mature — raise the
-      // numbers here, never lower them to make a change pass (the ratchet
-      // step enforces this for all four floors against origin/main).
+      // Coverage floor. The numbers live once, in scripts/gates.ts
+      // (COVERAGE_FLOOR) — bump them there to ratchet up, never lower them to
+      // make a change pass (the ratchet step enforces this against
+      // origin/main). Spread globally too (kept for ratchet-parsing compat
+      // and for any file outside src/modules/**), then a per-module glob for
+      // every module in module-map.json: `full` -> COVERAGE_FLOOR again,
+      // `polish`/`shell` -> zero (still measured/reported — only the gate is
+      // zeroed). ratchet parses the four global floors above; keep them
+      // first.
       thresholds: {
-        lines: 40,
-        functions: 40,
-        branches: 40,
-        statements: 40,
-        // Polish-lane modules (gates: "polish" in module-map.json) get a
-        // zero floor but stay measured/reported — all other checks apply.
-        // ratchet parses the four global floors above; keep them first.
-        ...polishCoverageThresholds(),
+        ...COVERAGE_FLOOR,
+        ...moduleCoverageThresholds(),
       },
     },
   },
