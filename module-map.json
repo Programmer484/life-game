@@ -43,7 +43,8 @@
       "path": "src/modules/core-viewport",
       "description": "pixi-viewport wrapper: pan/zoom/world coords",
       "allowedImports": ["config"],
-      "allowedExternals": ["pixi.js", "pixi-viewport", "vitest", "fast-check"]
+      "allowedExternals": ["pixi.js", "pixi-viewport", "vitest", "fast-check"],
+      "gates": "shell"
     },
     {
       "name": "entities",
@@ -79,8 +80,7 @@
       "path": "src/modules/ui",
       "description": "tasks panel, XP bar, modals, dev panel — DOM overlay",
       "allowedImports": ["config", "entities", "world", "systems"],
-      "allowedExternals": ["vitest", "fast-check"],
-      "gates": "polish"
+      "allowedExternals": ["vitest", "fast-check"]
     },
     {
       "name": "world",
