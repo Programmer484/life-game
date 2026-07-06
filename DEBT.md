@@ -54,3 +54,14 @@ src/modules/save/internal/supabase-gateways.ts sits at ~5% coverage as a
 deliberately thin adapter over supabase-js. Wontfix while it stays
 shell-thin: testing it would mock the SDK end to end for no logic gain;
 promote to tested code if logic ever accumulates there.
+
+## DEBT-5: Quoted redirect targets bypass the bash always-block
+
+severity: low — module: - — found: 2026-07-05 — status: open
+
+`echo x > '.task/allowed-files.json'` escapes the scope-guard's always-block
+on the scope file and the audit ledger because quote-stripping runs before
+write-operand extraction, so a quoted redirect target vanishes before it can
+be matched. Accepted for now: the Bash layer is an anti-accident heuristic,
+not an adversary boundary (CLAUDE.md rule 5), and every escape is logged to
+edit-log.jsonl; closing it would require a real shell tokenizer.
