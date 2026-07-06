@@ -32,8 +32,8 @@ function advance(state: GameplayState, count: number): GameplayState {
   return next;
 }
 
-function noDeps(): { onSkipStage: () => void; onPlantFullyGrown: () => void } {
-  return { onSkipStage: () => {}, onPlantFullyGrown: () => {} };
+function noDeps(): { onSkipStage: () => void } {
+  return { onSkipStage: () => {} };
 }
 
 function query(el: HTMLElement, testid: string): HTMLButtonElement | null {
@@ -41,12 +41,12 @@ function query(el: HTMLElement, testid: string): HTMLButtonElement | null {
 }
 
 describe('dev panel', () => {
-  it('renders both buttons with their labels', () => {
+  it('renders the skip button with its label and no plant button', () => {
     const panel = createDevPanel(noDeps());
 
     expect(panel.el.dataset['testid']).toBe('dev-panel');
     expect(query(panel.el, 'dev-skip-stage')?.textContent).toBe('Skip to next tree stage');
-    expect(query(panel.el, 'dev-plant-grown')?.textContent).toBe('Plant fully grown tree');
+    expect(query(panel.el, 'dev-plant-grown')).toBeNull();
   });
 
   it('calls onSkipStage once when the skip button is clicked', () => {
@@ -57,15 +57,6 @@ describe('dev panel', () => {
     query(panel.el, 'dev-skip-stage')?.click();
 
     expect(onSkipStage).toHaveBeenCalledTimes(1);
-  });
-
-  it('calls onPlantFullyGrown once when the plant button is clicked', () => {
-    const onPlantFullyGrown = vi.fn();
-    const panel = createDevPanel({ ...noDeps(), onPlantFullyGrown });
-
-    query(panel.el, 'dev-plant-grown')?.click();
-
-    expect(onPlantFullyGrown).toHaveBeenCalledTimes(1);
   });
 
   it('disables skip when no tree is focused (fresh state)', () => {
@@ -91,13 +82,6 @@ describe('dev panel', () => {
     expect(query(panel.el, 'dev-skip-stage')?.disabled).toBe(true);
   });
 
-  it('keeps the plant button enabled regardless of state', () => {
-    const panel = createDevPanel(noDeps());
-    panel.update(stateWithTree({ focusedTreeId: undefined }));
-
-    expect(query(panel.el, 'dev-plant-grown')?.disabled).toBe(false);
-  });
-
   it('does not duplicate DOM nodes or stack listeners across repeated updates', () => {
     const onSkipStage = vi.fn();
     const panel = createDevPanel({ ...noDeps(), onSkipStage });
@@ -107,7 +91,6 @@ describe('dev panel', () => {
     panel.update(state);
 
     expect(panel.el.querySelectorAll('[data-testid="dev-skip-stage"]')).toHaveLength(1);
-    expect(panel.el.querySelectorAll('[data-testid="dev-plant-grown"]')).toHaveLength(1);
 
     query(panel.el, 'dev-skip-stage')?.click();
     expect(onSkipStage).toHaveBeenCalledTimes(1);

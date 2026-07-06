@@ -4,7 +4,6 @@ import type { GameplayState } from '../../systems/index.ts';
 
 export interface DevPanelDeps {
   onSkipStage: () => void;
-  onPlantFullyGrown: () => void;
 }
 
 export interface DevPanel {
@@ -14,9 +13,10 @@ export interface DevPanel {
 
 /**
  * Developer shortcuts panel. Pure DOM overlay — reads state, pushes intent
- * out via callbacks, and never mutates game state itself. The buttons are
- * created once; `update` only toggles the skip button's disabled flag, so
- * repeated updates never duplicate DOM or stack listeners.
+ * out via callbacks, and never mutates game state itself. The button is
+ * created once; `update` only toggles its disabled flag, so repeated
+ * updates never duplicate DOM or stack listeners. (Planting fully grown
+ * lives in the planting modal's dev toggle, not here.)
  */
 export function createDevPanel(deps: DevPanelDeps): DevPanel {
   const el = document.createElement('section');
@@ -34,16 +34,7 @@ export function createDevPanel(deps: DevPanelDeps): DevPanel {
     deps.onSkipStage();
   });
 
-  const plant = document.createElement('button');
-  plant.type = 'button';
-  plant.className = 'dev-plant-grown';
-  plant.dataset['testid'] = 'dev-plant-grown';
-  plant.textContent = 'Plant fully grown tree';
-  plant.addEventListener('click', () => {
-    deps.onPlantFullyGrown();
-  });
-
-  el.append(skip, plant);
+  el.append(skip);
 
   function update(state: GameplayState): void {
     skip.disabled = focusedTree(state) === undefined;

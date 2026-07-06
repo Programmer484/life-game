@@ -118,15 +118,9 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
   const reflect = createReflectButton();
   dock(reflect.el, { bottom: '16px', right: '16px' });
 
-  // Dev "plant fully grown" arms a flag; the NEXT modal-confirmed plant goes
-  // through devPlantFullyGrown instead of plantAt (normal modal flow).
-  let plantGrownArmed = false;
   const devPanel = createDevPanel({
     onSkipStage: () => {
       game.devSkipStage();
-    },
-    onPlantFullyGrown: () => {
-      plantGrownArmed = true;
     },
   });
   devPanel.el.style.background = 'rgba(10, 14, 20, 0.85)';
@@ -135,9 +129,7 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
   dock(devPanel.el, { bottom: '16px', left: '16px' });
 
   const modal = createPlantingModal({
-    onPlant: ({ tile, templateKey, type }) => {
-      const grown = plantGrownArmed;
-      plantGrownArmed = false;
+    onPlant: ({ tile, templateKey, type, grown }) => {
       if (grown) game.devPlantFullyGrown(tile, templateKey, type);
       else game.plantAt(tile, templateKey, type);
     },
