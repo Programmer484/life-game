@@ -1,12 +1,14 @@
 // Internal implementation. Deep imports from other modules are blocked by lint.
-import { TASKS_PER_TREE, UNLOCK_COSTS } from '../../config/index.ts';
+import { TASKS_PER_TREE, UNLOCK_COST_BY_SECTION } from '../../config/index.ts';
 import type { Tree, TreeType } from '../../config/index.ts';
 import { isSectionUnlocked, unlockSection } from '../../world/index.ts';
 import { isComplete } from './growth.ts';
 import type { GameplayState } from './planting.ts';
 
-/** Sections 2..7 carry the cumulative UNLOCK_COSTS thresholds, in id order. */
-const LAST_SECTION_ID = UNLOCK_COSTS.length + 1;
+/** Unlockable section ids in ascending order, from the config cost table. */
+const UNLOCKABLE_SECTION_IDS: readonly number[] = Object.keys(UNLOCK_COST_BY_SECTION)
+  .map(Number)
+  .sort((a, b) => a - b);
 
 /** Number of fully grown (complete) trees — the unlock-trigger currency. */
 export function fullyGrownCount(trees: readonly Tree[]): number {
@@ -15,7 +17,7 @@ export function fullyGrownCount(trees: readonly Tree[]): number {
 
 /** Lowest locked section id, or undefined when every section is unlocked. */
 function nextLockedSectionId(state: GameplayState): number | undefined {
-  for (let id = 2; id <= LAST_SECTION_ID; id++) {
+  for (const id of UNLOCKABLE_SECTION_IDS) {
     if (!isSectionUnlocked(state.world, id)) return id;
   }
   return undefined;
@@ -30,11 +32,13 @@ function nextLockedSectionId(state: GameplayState): number | undefined {
 export function xpProgress(state: GameplayState): number {
   const next = nextLockedSectionId(state);
   if (next === undefined) return 1;
+  const cost = UNLOCK_COST_BY_SECTION[next];
+  if (cost === undefined) return 1; // no cost entry → nothing to progress toward
   const treeUnits = state.trees.reduce(
     (sum, tree) => sum + Math.min(tree.tasksDone, TASKS_PER_TREE) / TASKS_PER_TREE,
     0,
   );
-  return Math.min(1, Math.max(0, treeUnits / UNLOCK_COSTS[next - 2]!));
+  return Math.min(1, Math.max(0, treeUnits / cost));
 }
 
 /**
@@ -45,9 +49,10 @@ export function xpProgress(state: GameplayState): number {
 export function applyProgression(state: GameplayState): GameplayState {
   const grown = fullyGrownCount(state.trees);
   let world = state.world;
-  for (let id = 2; id <= LAST_SECTION_ID; id++) {
+  for (const id of UNLOCKABLE_SECTION_IDS) {
     if (isSectionUnlocked(world, id)) continue;
-    if (grown < UNLOCK_COSTS[id - 2]!) break; // sections unlock strictly in order
+    const cost = UNLOCK_COST_BY_SECTION[id];
+    if (cost === undefined || grown < cost) break; // sections unlock strictly in order
     world = unlockSection(world, id);
   }
   return world === state.world ? state : { ...state, world };

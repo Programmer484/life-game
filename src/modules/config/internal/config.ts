@@ -117,6 +117,19 @@ export const ISLAND_LAYOUT: SectionDef[] = [
   { id: 7, unlockedAtStart: false, tiles: rectTiles(12, 17, 2, 7) }, // 36
 ];
 
+/**
+ * Fully-grown-tree cost to unlock a section, keyed by section id. Derived
+ * from ISLAND_LAYOUT: the locked sections, in layout order, take
+ * UNLOCK_COSTS in order. A section id with no entry (unlocked at start, or
+ * unknown) has no unlock cost and is never unlockable via progression.
+ */
+export const UNLOCK_COST_BY_SECTION: Readonly<Record<number, number>> = Object.fromEntries(
+  ISLAND_LAYOUT.filter((section) => !section.unlockedAtStart).flatMap((section, index) => {
+    const cost = UNLOCK_COSTS[index];
+    return cost === undefined ? [] : [[section.id, cost]];
+  }),
+);
+
 // ── Story ────────────────────────────────────────────────────────────────────
 
 export const STORY_BLOCKS: string[] = [

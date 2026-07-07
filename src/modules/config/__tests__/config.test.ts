@@ -5,6 +5,7 @@ import {
   TASKS_PER_TREE,
   REVEAL_SIZE,
   UNLOCK_COSTS,
+  UNLOCK_COST_BY_SECTION,
   ISLAND_LAYOUT,
   STORY_BLOCKS,
   GOAL_TEMPLATES,
@@ -79,6 +80,15 @@ describe('config · tunable numbers', () => {
 
   it('UNLOCK_COSTS === [4,8,16,32,64,128]', () => {
     expect(UNLOCK_COSTS).toEqual([4, 8, 16, 32, 64, 128]);
+  });
+
+  it('UNLOCK_COST_BY_SECTION maps each locked section id to its cost, in layout order', () => {
+    expect(UNLOCK_COST_BY_SECTION).toEqual({ 2: 4, 3: 8, 4: 16, 5: 32, 6: 64, 7: 128 });
+  });
+
+  it('UNLOCK_COST_BY_SECTION has no entry for start or unknown section ids', () => {
+    expect(UNLOCK_COST_BY_SECTION[1]).toBeUndefined();
+    expect(UNLOCK_COST_BY_SECTION[99]).toBeUndefined();
   });
 });
 

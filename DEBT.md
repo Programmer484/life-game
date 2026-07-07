@@ -31,7 +31,8 @@ sync task's scope.
 
 ## DEBT-2: UNLOCK_COSTS[id-2] non-null assertions encode the section layout
 
-severity: low — module: systems — found: 2026-07-05 — status: open
+severity: low — module: systems — found: 2026-07-05 — status: fixed
+fixed-by: feature/debt-2-unlock-cost-lookup
 
 `UNLOCK_COSTS[id - 2]!` non-null assertions encode the sections-2..7
 convention in two places in the systems module — brittle if the island

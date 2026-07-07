@@ -75,6 +75,17 @@ describe('systems (progression)', () => {
     expect(applyProgression(state)).toBe(state);
   });
 
+  it('ignores a locked section with no cost entry instead of throwing', () => {
+    const base = stateWith(1000);
+    const world = {
+      ...base.world,
+      sections: [...base.world.sections, { id: 99, unlockedAtStart: false, tiles: [] }],
+    };
+    const state = { ...base, world };
+    const after = applyProgression(state); // must not throw on the costless id
+    expect(xpProgress(after)).toBe(1);
+  });
+
   it('reports progress 1 when every section is unlocked', () => {
     const state = stateWith(UNLOCK_COSTS[UNLOCK_COSTS.length - 1]!);
     const after = applyProgression(state);
