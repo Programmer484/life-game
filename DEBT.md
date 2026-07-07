@@ -22,7 +22,8 @@ for cross-cutting debt; entries are never deleted — flip `status` to `fixed`
 
 ## DEBT-1: game.ts autosave/auth path uncovered
 
-severity: low — module: core-app — found: 2026-07-05 — status: open
+severity: low — module: core-app — found: 2026-07-05 — status: fixed
+fixed-by: feature/debt-1-game-autosave-tests
 
 Lines ~180-185 of src/modules/core-app/internal/game.ts (the autosave/auth
 path) have no test coverage. Found during the 2026-07-05 framework audit;
