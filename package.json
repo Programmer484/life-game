@@ -50,6 +50,7 @@
     "vitest": "^2.1.8"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
     "@supabase/supabase-js": "^2.110.0",
     "pixi-viewport": "^6.0.3",
     "pixi.js": "^8.19.0"

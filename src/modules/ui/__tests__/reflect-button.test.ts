@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createReflectButton } from '../index.ts';
 
 describe('reflect button', () => {
   it('renders a visible button labeled "Reflect"', () => {
-    const { el } = createReflectButton();
+    const { el } = createReflectButton({ onClick: () => {} });
 
     expect(el.dataset['testid']).toBe('reflect-button');
     expect(el.textContent).toBe('Reflect');
@@ -14,17 +14,12 @@ describe('reflect button', () => {
     expect((el as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it('takes no callbacks — the factory has no deps surface', () => {
-    // Placeholder contract: nothing to emit, so nothing to configure.
-    expect(createReflectButton.length).toBe(0);
-  });
+  it('calls onClick when clicked', () => {
+    const onClick = vi.fn();
+    const { el } = createReflectButton({ onClick });
 
-  it('does nothing when clicked (no throw)', () => {
-    const { el } = createReflectButton();
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-    expect(() => {
-      el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      el.click();
-    }).not.toThrow();
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 });

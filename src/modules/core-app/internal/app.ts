@@ -3,15 +3,19 @@
 // controller and re-renders on its subscribe ticks.
 import { Application, Container } from 'pixi.js';
 import { loadArt } from '../../assets/index.ts';
+import type { CoachMode, CoachTransport } from '../../coach/index.ts';
+import { createAnthropicTransport, createCoachSession } from '../../coach/index.ts';
 import { createViewport } from '../../core-viewport/index.ts';
 import { drawWorld, screenToTile, updateTrees, updateWorld } from '../../render/index.ts';
 import type { Gateways } from '../../save/index.ts';
 import { createNullGateways, createSupabaseGateways } from '../../save/index.ts';
+import type { ChatSession } from '../../ui/index.ts';
 import {
   createAuthScreen,
   createDevPanel,
   createPlantingModal,
   createReflectButton,
+  createReflectionModal,
   createStoryScreen,
   createTasksPanel,
   createXpBar,
@@ -30,6 +34,29 @@ function chooseGateways(): Gateways {
   }
   console.info('[life-game] persistence: in-memory null gateways (dev fallback)');
   return createNullGateways();
+}
+
+/**
+ * Anthropic transport when the API key is present; undefined otherwise
+ * (the ui chat panels render their offline notice).
+ */
+function chooseCoachTransport(): CoachTransport | undefined {
+  const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+  const apiKey = env['VITE_ANTHROPIC_API_KEY'];
+  if (apiKey === undefined || apiKey === '') {
+    console.info('[life-game] coach: offline (no VITE_ANTHROPIC_API_KEY)');
+    return undefined;
+  }
+  console.info('[life-game] coach: Anthropic transport');
+  return createAnthropicTransport(apiKey);
+}
+
+/** Fresh-session factory for one coach mode, or undefined when offline. */
+function coachFactory(
+  mode: CoachMode,
+  transport: CoachTransport | undefined,
+): (() => ChatSession) | undefined {
+  return transport ? () => createCoachSession(mode, transport) : undefined;
 }
 
 /** Boot the shell: auth screen → (first run) story → island scene. */
@@ -115,7 +142,14 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
   const xpBar = createXpBar();
   dock(xpBar.el, { top: '16px', left: '50%', transform: 'translateX(-50%)' });
 
-  const reflect = createReflectButton();
+  const coachTransport = chooseCoachTransport();
+
+  const reflectionModal = createReflectionModal({
+    createSession: coachFactory('reflection', coachTransport),
+  });
+  dock(reflectionModal.el, { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
+
+  const reflect = createReflectButton({ onClick: () => reflectionModal.open() });
   dock(reflect.el, { bottom: '16px', right: '16px' });
 
   const devPanel = createDevPanel({
@@ -133,6 +167,7 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
       if (grown) game.devPlantFullyGrown(tile, templateKey, type);
       else game.plantAt(tile, templateKey, type);
     },
+    createGoalChat: coachFactory('goal', coachTransport),
   });
   dock(modal.el, { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
 

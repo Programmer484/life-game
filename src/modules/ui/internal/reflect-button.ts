@@ -1,15 +1,20 @@
 // Internal implementation. Deep imports from other modules are blocked by lint.
 
-/**
- * Placeholder Reflect button. It is visible but inert: clicking it does
- * nothing and there is no callback surface yet (wired in a later slice).
- */
-export function createReflectButton(): { el: HTMLElement } {
+export interface ReflectButtonDeps {
+  /** Fired on click — core-app opens the reflection modal. */
+  onClick: () => void;
+}
+
+/** The Reflect button: opens the reflection chat via the injected callback. */
+export function createReflectButton(deps: ReflectButtonDeps): { el: HTMLElement } {
   const el = document.createElement('button');
   el.type = 'button';
   el.className = 'reflect-button';
   el.dataset['testid'] = 'reflect-button';
   el.textContent = 'Reflect';
   el.style.fontFamily = 'sans-serif';
+  el.addEventListener('click', () => {
+    deps.onClick();
+  });
   return { el };
 }

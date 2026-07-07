@@ -65,3 +65,13 @@ write-operand extraction, so a quoted redirect target vanishes before it can
 be matched. Accepted for now: the Bash layer is an anti-accident heuristic,
 not an adversary boundary (CLAUDE.md rule 5), and every escape is logged to
 edit-log.jsonl; closing it would require a real shell tokenizer.
+
+## DEBT-6: Anthropic API key ships to the browser bundle
+
+severity: medium — module: coach — found: 2026-07-06 — status: open
+
+The coach transport calls the Anthropic API directly from the browser with
+`dangerouslyAllowBrowser`, so `VITE_ANTHROPIC_API_KEY` is embedded in the
+client bundle and visible to anyone with the page. Acceptable for the v1
+local prototype (key lives only in the developer's .env.local); must move
+behind a server-side proxy before any deployment.
