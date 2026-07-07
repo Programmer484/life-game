@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { ChatMessage } from '../index.ts';
+import type { ChatMessage, CoachMode } from '../index.ts';
 import { createCoachSession } from '../index.ts';
 
 function fakeTransport(replies: string[]) {
-  const calls: { systemPrompt: string; messages: readonly ChatMessage[] }[] = [];
-  const transport = (systemPrompt: string, messages: readonly ChatMessage[]) => {
-    calls.push({ systemPrompt, messages: [...messages] });
+  const calls: { mode: CoachMode; messages: readonly ChatMessage[] }[] = [];
+  const transport = (mode: CoachMode, messages: readonly ChatMessage[]) => {
+    calls.push({ mode, messages: [...messages] });
     return Promise.resolve(replies[calls.length - 1] ?? '(no reply)');
   };
   return { transport, calls };
@@ -36,14 +36,13 @@ describe('createCoachSession', () => {
     expect(session.history()).toHaveLength(4);
   });
 
-  it('uses a different system prompt per mode', async () => {
+  it('passes its own mode to the transport', async () => {
     const goal = fakeTransport(['ok']);
     const reflection = fakeTransport(['ok']);
     await createCoachSession('goal', goal.transport).send('hi');
     await createCoachSession('reflection', reflection.transport).send('hi');
-    expect(goal.calls[0]?.systemPrompt).toContain('goal-clarification coach');
-    expect(reflection.calls[0]?.systemPrompt).toContain('reflection coach');
-    expect(goal.calls[0]?.systemPrompt).not.toBe(reflection.calls[0]?.systemPrompt);
+    expect(goal.calls[0]?.mode).toBe('goal');
+    expect(reflection.calls[0]?.mode).toBe('reflection');
   });
 
   it('leaves history unchanged when the transport rejects', async () => {

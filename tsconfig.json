@@ -20,6 +20,6 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src", "scripts", "test", ".claude", "*.ts"],
+  "include": ["src", "scripts", "test", "api", ".claude", "*.ts"],
   "exclude": ["node_modules", "dist", "coverage"]
 }

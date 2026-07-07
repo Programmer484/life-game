@@ -71,7 +71,8 @@ edit-log.jsonl; closing it would require a real shell tokenizer.
 
 ## DEBT-6: Anthropic API key ships to the browser bundle
 
-severity: medium — module: coach — found: 2026-07-06 — status: open
+severity: medium — module: coach — found: 2026-07-06 — status: fixed
+fixed-by: feature/debt-6-coach-proxy
 
 The coach transport calls the Anthropic API directly from the browser with
 `dangerouslyAllowBrowser`, so `VITE_ANTHROPIC_API_KEY` is embedded in the

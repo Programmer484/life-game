@@ -19,7 +19,7 @@ export interface ChatPanel {
   start(session: ChatSession | undefined): void;
 }
 
-const OFFLINE_NOTICE = 'Chat is offline — add VITE_ANTHROPIC_API_KEY to .env.local to enable it.';
+const OFFLINE_NOTICE = 'Chat is unavailable.';
 
 /** Shared chat UI for the goal and reflection coaches: log + input + send. */
 export function createChatPanel(): ChatPanel {
@@ -78,8 +78,11 @@ export function createChatPanel(): ChatPanel {
         // Ignore replies from a conversation that was reset mid-flight.
         if (session === active) append('assistant', reply);
       })
-      .catch(() => {
-        if (session === active) append('notice', 'Something went wrong — try again.');
+      .catch((error: unknown) => {
+        if (session !== active) return;
+        // Server errors carry a user-facing message (e.g. the 503 no-key one).
+        const message = error instanceof Error && error.message !== '' ? error.message : undefined;
+        append('notice', message ?? 'Something went wrong — try again.');
       })
       .finally(() => {
         if (session === active) setBusy(false);

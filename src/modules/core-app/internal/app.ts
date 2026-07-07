@@ -4,7 +4,7 @@
 import { Application, Container } from 'pixi.js';
 import { loadArt } from '../../assets/index.ts';
 import type { CoachMode, CoachTransport } from '../../coach/index.ts';
-import { createAnthropicTransport, createCoachSession } from '../../coach/index.ts';
+import { createCoachSession, createProxyTransport } from '../../coach/index.ts';
 import { createViewport } from '../../core-viewport/index.ts';
 import { drawWorld, screenToTile, updateTrees, updateWorld } from '../../render/index.ts';
 import type { Gateways } from '../../save/index.ts';
@@ -37,26 +37,12 @@ function chooseGateways(): Gateways {
 }
 
 /**
- * Anthropic transport when the API key is present; undefined otherwise
- * (the ui chat panels render their offline notice).
+ * Fresh-session factory for one coach mode. Sessions always exist now — the
+ * key lives server-side, so a missing key surfaces as the proxy's 503 error
+ * message inside the chat, not as an offline panel.
  */
-function chooseCoachTransport(): CoachTransport | undefined {
-  const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
-  const apiKey = env['VITE_ANTHROPIC_API_KEY'];
-  if (apiKey === undefined || apiKey === '') {
-    console.info('[life-game] coach: offline (no VITE_ANTHROPIC_API_KEY)');
-    return undefined;
-  }
-  console.info('[life-game] coach: Anthropic transport');
-  return createAnthropicTransport(apiKey);
-}
-
-/** Fresh-session factory for one coach mode, or undefined when offline. */
-function coachFactory(
-  mode: CoachMode,
-  transport: CoachTransport | undefined,
-): (() => ChatSession) | undefined {
-  return transport ? () => createCoachSession(mode, transport) : undefined;
+function coachFactory(mode: CoachMode, transport: CoachTransport): () => ChatSession {
+  return () => createCoachSession(mode, transport);
 }
 
 /** Boot the shell: auth screen → (first run) story → island scene. */
@@ -142,7 +128,7 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
   const xpBar = createXpBar();
   dock(xpBar.el, { top: '16px', left: '50%', transform: 'translateX(-50%)' });
 
-  const coachTransport = chooseCoachTransport();
+  const coachTransport = createProxyTransport();
 
   const reflectionModal = createReflectionModal({
     createSession: coachFactory('reflection', coachTransport),
