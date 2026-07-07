@@ -3,6 +3,8 @@ import { GOAL_TEMPLATES } from '../../config/index.ts';
 import type { TileCoord, TreeType } from '../../config/index.ts';
 import { availableTreeTypes } from '../../systems/index.ts';
 import type { GameplayState } from '../../systems/index.ts';
+import type { ChatPanel, ChatSession } from './chat-panel.ts';
+import { createChatPanel } from './chat-panel.ts';
 
 export interface PlantChoice {
   tile: TileCoord;
@@ -14,6 +16,8 @@ export interface PlantChoice {
 
 export interface PlantingModalDeps {
   onPlant: (choice: PlantChoice) => void;
+  /** Fresh goal-setting conversation per open; absent = no API key configured. */
+  createGoalChat?: () => ChatSession;
 }
 
 export interface PlantingModal {
@@ -33,12 +37,13 @@ function button(testid: string, label: string): HTMLButtonElement {
 }
 
 /**
- * The planting modal: a placeholder for a future goal-setting chatbot.
- * Shows a disabled chat area plus an Autofill button that reveals the two
- * goal templates from config. Choosing one reports the intent via `onPlant`
- * (tile + template key + selected tree type) and closes — the modal never
- * creates goals or mutates state itself. All DOM is built once at creation;
- * `open` only resets it, so repeated opens never stack nodes or listeners.
+ * The planting modal: a goal-setting chat plus an Autofill button that
+ * reveals the two goal templates from config. Each open starts a fresh chat
+ * (or the offline notice without a session factory). Choosing a template
+ * reports the intent via `onPlant` (tile + template key + selected tree
+ * type) and closes — the modal never creates goals or mutates state itself.
+ * All DOM is built once at creation; `open` only resets it, so repeated
+ * opens never stack nodes or listeners.
  */
 export function createPlantingModal(deps: PlantingModalDeps): PlantingModal {
   const el = document.createElement('div');
@@ -52,14 +57,8 @@ export function createPlantingModal(deps: PlantingModalDeps): PlantingModal {
   el.style.color = '#eee';
   el.style.fontFamily = 'sans-serif';
 
-  const chat = document.createElement('textarea');
-  chat.dataset['testid'] = 'chat-placeholder';
-  chat.disabled = true;
-  chat.placeholder = 'Goal-setting chat coming soon — use Autofill below.';
-  chat.style.display = 'block';
-  chat.style.width = '240px';
-  chat.style.height = '64px';
-  el.appendChild(chat);
+  const panel: ChatPanel = createChatPanel();
+  el.appendChild(panel.el);
 
   // Tree-type selector: A always offered; B only when the state unlocks it.
   const typeRow = document.createElement('div');
@@ -123,6 +122,7 @@ export function createPlantingModal(deps: PlantingModalDeps): PlantingModal {
 
   function open(state: GameplayState, tile: TileCoord): void {
     openTile = tile;
+    panel.start(deps.createGoalChat?.());
     templates.replaceChildren();
     selectType('A');
     setGrown(false);

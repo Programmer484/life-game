@@ -15,6 +15,13 @@
       "allowedExternals": ["pixi.js", "vitest", "fast-check"]
     },
     {
+      "name": "coach",
+      "path": "src/modules/coach",
+      "description": "goal & reflection chat: system prompts, session state, Anthropic transport",
+      "allowedImports": [],
+      "allowedExternals": ["@anthropic-ai/sdk", "vitest", "fast-check"]
+    },
+    {
       "name": "config",
       "path": "src/modules/config",
       "description": "v1 contracts: shared types (tile/tree/goal/task/event) + all tunable numbers, island layout, goal templates, story text",
@@ -26,6 +33,7 @@
       "path": "src/modules/core-app",
       "description": "Pixi Application bootstrap (v8 async init), ticker, resize, scene switching",
       "allowedImports": [
+        "coach",
         "config",
         "world",
         "entities",
