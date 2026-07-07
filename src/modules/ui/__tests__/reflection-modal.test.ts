@@ -36,7 +36,7 @@ describe('ui / reflection modal', () => {
     const modal = createReflectionModal({});
     modal.open();
 
-    expect(query(modal.el, 'chat-log')?.textContent).toContain('VITE_ANTHROPIC_API_KEY');
+    expect(query(modal.el, 'chat-log')?.textContent).toContain('Chat is unavailable.');
     expect((query(modal.el, 'chat-input') as HTMLInputElement).disabled).toBe(true);
   });
 

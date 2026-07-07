@@ -1,6 +1,6 @@
 // Internal implementation. Deep imports from other modules are blocked by lint.
 import type { CoachMode } from './prompts.ts';
-import { OPENING_MESSAGES, SYSTEM_PROMPTS } from './prompts.ts';
+import { OPENING_MESSAGES } from './prompts.ts';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -9,12 +9,11 @@ export interface ChatMessage {
 
 /**
  * The model call, injected so sessions are testable without a network.
- * Receives the system prompt and full history; resolves to the reply text.
+ * Receives the mode and full history; resolves to the reply text. System
+ * prompts are resolved server-side (see handler.ts) so they never need to
+ * cross this boundary.
  */
-export type CoachTransport = (
-  systemPrompt: string,
-  messages: readonly ChatMessage[],
-) => Promise<string>;
+export type CoachTransport = (mode: CoachMode, messages: readonly ChatMessage[]) => Promise<string>;
 
 export interface CoachSession {
   mode: CoachMode;
@@ -39,7 +38,7 @@ export function createCoachSession(mode: CoachMode, transport: CoachTransport): 
     history: () => messages,
     async send(text: string): Promise<string> {
       const attempt = [...messages, { role: 'user', text } as const];
-      const reply = await transport(SYSTEM_PROMPTS[mode], attempt);
+      const reply = await transport(mode, attempt);
       messages.push({ role: 'user', text }, { role: 'assistant', text: reply });
       return reply;
     },

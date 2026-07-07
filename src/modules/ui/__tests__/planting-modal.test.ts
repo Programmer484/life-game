@@ -36,7 +36,7 @@ describe('ui / planting modal', () => {
     expect(modal.isOpen()).toBe(true);
     expect(modal.el.style.display).not.toBe('none');
     expect(query(modal.el, 'chat-panel')).not.toBeNull();
-    expect(query(modal.el, 'chat-log')?.textContent).toContain('VITE_ANTHROPIC_API_KEY');
+    expect(query(modal.el, 'chat-log')?.textContent).toContain('Chat is unavailable.');
     expect((query(modal.el, 'chat-input') as HTMLInputElement).disabled).toBe(true);
     expect((query(modal.el, 'chat-send') as HTMLButtonElement).disabled).toBe(true);
   });

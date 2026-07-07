@@ -21,7 +21,7 @@ describe('ui / chat panel', () => {
   it('starts offline: notice shown, input and send disabled', () => {
     const panel = createChatPanel();
 
-    expect(query(panel.el, 'chat-log')?.textContent).toContain('VITE_ANTHROPIC_API_KEY');
+    expect(query(panel.el, 'chat-log')?.textContent).toContain('Chat is unavailable.');
     expect(input(panel.el).disabled).toBe(true);
     expect((query(panel.el, 'chat-send') as HTMLButtonElement).disabled).toBe(true);
   });
@@ -46,18 +46,32 @@ describe('ui / chat panel', () => {
     expect(input(panel.el).disabled).toBe(false);
   });
 
-  it('shows a notice line when the session send rejects, and re-enables input', async () => {
+  it('shows the error message when the session rejects with one, and re-enables input', async () => {
     const panel = createChatPanel();
-    panel.start(fakeSession({ send: () => Promise.reject(new Error('boom')) }));
+    panel.start(
+      fakeSession({ send: () => Promise.reject(new Error('Coach is offline — no key.')) }),
+    );
 
     input(panel.el).value = 'hi';
     query(panel.el, 'chat-send')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     const log = query(panel.el, 'chat-log')!;
     await vi.waitFor(() => {
-      expect(log.textContent).toContain('Something went wrong');
+      expect(log.textContent).toContain('Coach is offline — no key.');
     });
     expect(input(panel.el).disabled).toBe(false);
+  });
+
+  it('falls back to a generic notice when the rejection has no message', async () => {
+    const panel = createChatPanel();
+    panel.start(fakeSession({ send: () => Promise.reject(new Error()) }));
+
+    input(panel.el).value = 'hi';
+    query(panel.el, 'chat-send')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    await vi.waitFor(() => {
+      expect(query(panel.el, 'chat-log')!.textContent).toContain('Something went wrong');
+    });
   });
 
   it('submits on Enter', async () => {

@@ -17,7 +17,7 @@
     {
       "name": "coach",
       "path": "src/modules/coach",
-      "description": "goal & reflection chat: system prompts, session state, Anthropic transport",
+      "description": "goal & reflection chat: system prompts, session state, browser proxy transport + server-side coach handler",
       "allowedImports": [],
       "allowedExternals": ["@anthropic-ai/sdk", "vitest", "fast-check"]
     },
