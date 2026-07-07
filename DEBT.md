@@ -59,7 +59,8 @@ promote to tested code if logic ever accumulates there.
 
 ## DEBT-5: Quoted redirect targets bypass the bash always-block
 
-severity: low — module: - — found: 2026-07-05 — status: open
+severity: low — module: - — found: 2026-07-05 — status: fixed
+fixed-by: feature/debt-5-scope-guard-quoted-redirect
 
 `echo x > '.task/allowed-files.json'` escapes the scope-guard's always-block
 on the scope file and the audit ledger because quote-stripping runs before
