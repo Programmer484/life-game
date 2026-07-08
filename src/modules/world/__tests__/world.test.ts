@@ -35,7 +35,7 @@ describe('world · createWorld', () => {
   it('returns undefined tile state and section for coords not on the island', () => {
     const world = createWorld();
     expect(tileState(world, { x: 100, y: 100 })).toBeUndefined();
-    expect(tileState(world, { x: -1, y: 0 })).toBeUndefined();
+    expect(tileState(world, { x: -13, y: 0 })).toBeUndefined();
     expect(sectionOf(world, { x: 100, y: 100 })).toBeUndefined();
   });
 
@@ -105,13 +105,16 @@ describe('world · revealAround', () => {
   });
 
   it('ignores coords off the island', () => {
-    // {0,0}'s 3×3 covers off-island coords like {-1,0} and {-1,-1}.
+    // {0,0}'s 3×3 covers locked-section coords; a corner reveal at the outer
+    // coastline ({-12,-4}, section 21) covers true off-island coords.
     const world = revealAround(createWorld(), { x: 0, y: 0 });
     expect(tileState(world, { x: 0, y: 0 })).toBe('vibrant');
     expect(tileState(world, { x: 1, y: 1 })).toBe('vibrant');
-    expect(tileState(world, { x: -1, y: 0 })).toBeUndefined();
-    expect(tileState(world, { x: -1, y: -1 })).toBeUndefined();
+    expect(tileState(world, { x: -1, y: 0 })).toBe('fog'); // section 13 stays fog
     expect(tileState(world, { x: 1, y: -1 })).toBe('fog'); // section 6 stays fog
+    const coast = revealAround(world, { x: -12, y: -4 });
+    expect(tileState(coast, { x: -13, y: -4 })).toBeUndefined();
+    expect(tileState(coast, { x: -13, y: -5 })).toBeUndefined();
   });
 
   it('keeps already-vibrant tiles vibrant and a second overlapping reveal only adds', () => {

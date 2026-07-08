@@ -77,8 +77,23 @@ describe('config · tunable numbers', () => {
     expect(REVEAL_SIZE).toEqual({ width: 3, height: 3 });
   });
 
-  it('UNLOCK_COST_BY_SECTION maps each locked section id to its cost, in layout order', () => {
-    expect(UNLOCK_COST_BY_SECTION).toEqual({ 2: 4, 3: 8, 4: 16, 5: 32, 6: 64, 7: 128 });
+  it('UNLOCK_COST_BY_SECTION covers every locked section, starting at 4', () => {
+    const lockedIds = ISLAND_LAYOUT.filter((s) => !s.unlockedAtStart).map((s) => s.id);
+    expect(
+      Object.keys(UNLOCK_COST_BY_SECTION)
+        .map(Number)
+        .sort((a, b) => a - b),
+    ).toEqual(lockedIds.sort((a, b) => a - b));
+    expect(UNLOCK_COST_BY_SECTION[2]).toBe(4);
+  });
+
+  it('unlock costs are strictly monotonically increasing in layout order', () => {
+    const costs = ISLAND_LAYOUT.filter((s) => !s.unlockedAtStart).map(
+      (s) => UNLOCK_COST_BY_SECTION[s.id] ?? NaN,
+    );
+    for (let i = 1; i < costs.length; i++) {
+      expect(costs[i]).toBeGreaterThan(costs[i - 1] ?? NaN);
+    }
   });
 
   it('UNLOCK_COST_BY_SECTION has no entry for start or unknown section ids', () => {
@@ -90,17 +105,57 @@ describe('config · tunable numbers', () => {
 describe('config · ISLAND_LAYOUT', () => {
   const keyOf = (t: TileCoord): string => `${String(t.x)},${String(t.y)}`;
 
-  it('has exactly 7 sections', () => {
-    expect(ISLAND_LAYOUT).toHaveLength(7);
+  it('has exactly 25 sections with unique ids', () => {
+    expect(ISLAND_LAYOUT).toHaveLength(25);
+    expect(new Set(ISLAND_LAYOUT.map((s) => s.id)).size).toBe(25);
   });
 
-  it('each section has 31–41 unique tiles', () => {
+  it('section 1 keeps its original coords (save/demo compatibility)', () => {
+    const start = ISLAND_LAYOUT.find((s) => s.id === 1);
+    const expected = new Set<string>();
+    for (let y = 0; y <= 5; y++) for (let x = 0; x <= 5; x++) expected.add(`${x},${y}`);
+    expect(new Set(start?.tiles.map(keyOf))).toEqual(expected);
+  });
+
+  it('each section has 25–42 unique tiles', () => {
     for (const section of ISLAND_LAYOUT) {
-      expect(section.tiles.length).toBeGreaterThanOrEqual(31);
-      expect(section.tiles.length).toBeLessThanOrEqual(41);
+      expect(section.tiles.length).toBeGreaterThanOrEqual(25);
+      expect(section.tiles.length).toBeLessThanOrEqual(42);
       const unique = new Set(section.tiles.map(keyOf));
       expect(unique.size).toBe(section.tiles.length);
     }
+  });
+
+  it('every section is edge-reachable from section 1', () => {
+    // Flood-fill over section adjacency: two sections are adjacent when any
+    // of their tiles share an orthogonal edge.
+    const tileSets = new Map(ISLAND_LAYOUT.map((s) => [s.id, new Set(s.tiles.map(keyOf))]));
+    const touches = (a: number, b: number): boolean => {
+      const other = tileSets.get(b);
+      const own = ISLAND_LAYOUT.find((s) => s.id === a)?.tiles ?? [];
+      return own.some(
+        (t) =>
+          other?.has(`${t.x + 1},${t.y}`) ||
+          other?.has(`${t.x - 1},${t.y}`) ||
+          other?.has(`${t.x},${t.y + 1}`) ||
+          other?.has(`${t.x},${t.y - 1}`),
+      );
+    };
+    const reached = new Set([1]);
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const s of ISLAND_LAYOUT) {
+        if (reached.has(s.id)) continue;
+        if ([...reached].some((id) => touches(s.id, id))) {
+          reached.add(s.id);
+          grew = true;
+        }
+      }
+    }
+    expect([...reached].sort((a, b) => a - b)).toEqual(
+      ISLAND_LAYOUT.map((s) => s.id).sort((a, b) => a - b),
+    );
   });
 
   it('only section 1 is unlockedAtStart', () => {

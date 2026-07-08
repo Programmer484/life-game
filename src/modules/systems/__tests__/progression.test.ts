@@ -40,9 +40,9 @@ describe('systems (progression)', () => {
     expect(availableTreeTypes(after)).toEqual(['A']);
   });
 
-  it('carries unlock progress: 4 fully grown with section 2 unlocked shows 4/8 toward section 3', () => {
+  it('carries unlock progress: 4 fully grown with section 2 unlocked shows progress toward section 3', () => {
     const after = applyProgression(stateWith(4));
-    expect(xpProgress(after)).toBe(0.5);
+    expect(xpProgress(after)).toBe(4 / (UNLOCK_COST_BY_SECTION[3] ?? NaN));
   });
 
   it('counts partial trees fractionally in xpProgress but not toward the unlock trigger', () => {
@@ -55,10 +55,13 @@ describe('systems (progression)', () => {
   });
 
   it('unlocks multiple sections in order when several thresholds are met at once', () => {
+    // Costs: 2→4, 3→5, 4→6, 5→7, 6→9 — so 8 fully grown unlocks sections 2–5.
     const after = applyProgression(stateWith(8));
     expect(isSectionUnlocked(after.world, 2)).toBe(true);
     expect(isSectionUnlocked(after.world, 3)).toBe(true);
-    expect(isSectionUnlocked(after.world, 4)).toBe(false);
+    expect(isSectionUnlocked(after.world, 4)).toBe(true);
+    expect(isSectionUnlocked(after.world, 5)).toBe(true);
+    expect(isSectionUnlocked(after.world, 6)).toBe(false);
   });
 
   it('is idempotent and immutable, and a no-op when nothing qualifies', () => {

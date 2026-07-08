@@ -10,3 +10,9 @@ export function textureKeyForTile(state: TileState, vibrancy: Vibrancy): TileTex
   if (state === 'fog') return { kind: 'fog' };
   return { kind: 'tile', vibrancy };
 }
+
+/** Structural equality for texture keys — drives the retexture diff. */
+export function sameTileKey(a: TileTextureKey, b: TileTextureKey): boolean {
+  if (a.kind === 'fog' || b.kind === 'fog') return a.kind === b.kind;
+  return a.vibrancy === b.vibrancy;
+}
