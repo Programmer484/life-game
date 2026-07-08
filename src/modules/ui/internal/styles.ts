@@ -247,6 +247,102 @@ const CSS = /* css */ `
   font-size: 1.125rem;
   line-height: 1.7;
 }
+
+.lg-task-card {
+  padding: var(--lg-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--lg-radius);
+  background: #191c23;
+}
+.lg-task-card--focused {
+  border-color: var(--lg-accent);
+}
+.lg-task-card + .lg-task-card {
+  margin-top: var(--lg-space-2);
+}
+
+.lg-chat {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--lg-font);
+}
+.lg-chat__log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lg-space-1);
+  width: 280px;
+  height: 160px;
+  overflow-y: auto;
+  margin-bottom: var(--lg-space-2);
+}
+/* Fill variant: the host (e.g. the reflection modal) owns the size. */
+.lg-chat--fill,
+.lg-chat--fill .lg-chat__log {
+  flex: 1;
+  min-height: 0;
+  width: auto;
+}
+.lg-chat__msg {
+  max-width: 80%;
+  padding: var(--lg-space-1) var(--lg-space-2);
+  border-radius: var(--lg-radius);
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.lg-chat__msg--user {
+  align-self: flex-end;
+  background: var(--lg-accent);
+  color: #10130d;
+}
+.lg-chat__msg--coach {
+  align-self: flex-start;
+  background: #333944;
+  color: var(--lg-fg);
+}
+.lg-chat__msg--error {
+  align-self: flex-start;
+  background: #2c1e1c;
+  border-left: 3px solid var(--lg-danger);
+  color: var(--lg-fg);
+}
+.lg-chat__label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11px;
+  opacity: 0.7;
+}
+.lg-chat__typing .lg-chat__dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 3px;
+  border-radius: 50%;
+  background: var(--lg-fg);
+  opacity: 0.5;
+  animation: lg-chat-dot 1s ease-in-out infinite;
+}
+.lg-chat__typing .lg-chat__dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.lg-chat__typing .lg-chat__dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes lg-chat-dot {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lg-chat__typing .lg-chat__dot {
+    animation: none;
+  }
+}
 `;
 
 /** Inject the shared stylesheet into `document.head` exactly once. */

@@ -44,6 +44,8 @@ export interface Game {
   finishStory(): void;
   /** Complete the focused tree's next task; no-op without a focused tree. */
   completeNextTask(): void;
+  /** Complete `treeId`'s next task; no-op for unknown or complete trees. */
+  completeTaskFor(treeId: string): void;
   plantAt(tile: TileCoord, templateKey: TemplateKey, type: TreeType): PlantOutcome;
   canPlantAt(tile: TileCoord): ReturnType<typeof canPlant>;
   focusTree(id: string): void;
@@ -156,6 +158,9 @@ export function createGame(gateways: Gateways, timers?: AutosaverTimers): Game {
     completeNextTask() {
       const tree = focusedTree(state);
       if (tree) completeFor(tree.id);
+    },
+    completeTaskFor(treeId) {
+      completeFor(treeId);
     },
     plantAt,
     canPlantAt: (tile) => canPlant(state, tile),

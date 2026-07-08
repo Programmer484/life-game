@@ -211,6 +211,17 @@ describe('focus — switching which tree tasks drive', () => {
     expect(trees.find((tree) => tree.id === 'tree-demo')!.tasksDone).toBe(1);
   });
 
+  it('completeTaskFor drives the named tree without moving focus', async () => {
+    const game = await signedInGame();
+    game.plantAt({ x: 4, y: 4 }, 'workout', 'A'); // planting focuses the new tree
+    const focusedId = game.state().focusedTreeId;
+    game.completeTaskFor('tree-demo');
+    expect(demoTree(game).tasksDone).toBe(1);
+    expect(game.state().focusedTreeId).toBe(focusedId);
+    game.completeTaskFor('no-such-tree'); // unknown tree is a no-op
+    expect(demoTree(game).tasksDone).toBe(1);
+  });
+
   it('a complete tree cannot be focused', async () => {
     const game = await signedInGame();
     const planted = game.devPlantFullyGrown({ x: 4, y: 4 }, 'sleep', 'A');

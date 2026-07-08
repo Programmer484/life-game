@@ -23,11 +23,23 @@ function stateWithTree(overrides: Partial<GameplayState> = {}): GameplayState {
   };
 }
 
-/** Complete the first `count` tasks of the focused tree via the systems module. */
-function advance(state: GameplayState, count: number): GameplayState {
+/** A state with three planted trees (tree-1..3), tree-1 focused by default. */
+function stateWithThreeTrees(overrides: Partial<GameplayState> = {}): GameplayState {
+  const keys = Object.keys(GOAL_TEMPLATES) as (keyof typeof GOAL_TEMPLATES)[];
+  const goals: Record<string, ReturnType<typeof createGoal>> = {};
+  const trees = [1, 2, 3].map((n) => {
+    const goal = createGoal(`goal-${String(n)}`, GOAL_TEMPLATES[keys[(n - 1) % keys.length]!]);
+    goals[goal.id] = goal;
+    return createTree(`tree-${String(n)}`, { x: n, y: n }, 'A', goal.id);
+  });
+  return { trees, goals, world: createWorld(), focusedTreeId: TREE_ID, ...overrides };
+}
+
+/** Complete the first `count` tasks of `treeId` via the systems module. */
+function advance(state: GameplayState, count: number, treeId = TREE_ID): GameplayState {
   let next = state;
   for (let i = 0; i < count; i++) {
-    next = { ...next, ...applyTaskCompleted(next, taskCompletedEvent(TREE_ID, i)) };
+    next = { ...next, ...applyTaskCompleted(next, taskCompletedEvent(treeId, i)) };
   }
   return next;
 }
@@ -36,14 +48,20 @@ function query(el: HTMLElement, testid: string): HTMLElement | null {
   return el.querySelector<HTMLElement>(`[data-testid="${testid}"]`);
 }
 
+function queryAll(el: HTMLElement, testid: string): HTMLElement[] {
+  return [...el.querySelectorAll<HTMLElement>(`[data-testid="${testid}"]`)];
+}
+
+const noDeps = { onCompleteTask: (): void => {}, onFocusTree: (): void => {} };
+
 describe('tasks panel', () => {
   it('shows the focused tree’s goal name, next task title, and estimated minutes', () => {
-    const panel = createTasksPanel({ onCompleteTask: () => {} });
+    const panel = createTasksPanel(noDeps);
     panel.update(stateWithTree());
 
     const firstTask = GOAL_TEMPLATES.sleep.tasks[0]!;
     expect(panel.el.dataset['testid']).toBe('tasks-panel');
-    expect(query(panel.el, 'goal-name')?.textContent).toBe(GOAL_TEMPLATES.sleep.name);
+    expect(query(panel.el, 'goal-name')?.textContent).toContain(GOAL_TEMPLATES.sleep.name);
     expect(query(panel.el, 'next-task-title')?.textContent).toBe(firstTask.title);
     expect(query(panel.el, 'next-task-minutes')?.textContent).toContain(
       String(firstTask.estimatedMinutes),
@@ -53,22 +71,78 @@ describe('tasks panel', () => {
     expect(checkbox.checked).toBe(false);
   });
 
-  it('calls onCompleteTask with the treeId and next task index when the checkbox is checked', () => {
-    const onCompleteTask = vi.fn();
-    const panel = createTasksPanel({ onCompleteTask });
+  it('renders one card per active tree, focused first then plant order', () => {
+    const panel = createTasksPanel(noDeps);
+    panel.update(stateWithThreeTrees({ focusedTreeId: 'tree-2' }));
+
+    const cards = queryAll(panel.el, 'task-card');
+    expect(cards.map((card) => card.dataset['treeId'])).toEqual(['tree-2', 'tree-1', 'tree-3']);
+    expect(cards[0]!.dataset['focused']).toBe('true');
+    expect(cards[0]!.className).toContain('lg-task-card--focused');
+    expect(cards[1]!.className).not.toContain('lg-task-card--focused');
+  });
+
+  it('shows per-card progress text and a proportional bar fill', () => {
+    const panel = createTasksPanel(noDeps);
     const state = advance(stateWithTree(), 2);
     panel.update(state);
 
-    const checkbox = query(panel.el, 'next-task-checkbox') as HTMLInputElement;
-    checkbox.checked = true;
-    checkbox.dispatchEvent(new Event('change'));
+    const total = GOAL_TEMPLATES.sleep.tasks.length;
+    expect(query(panel.el, 'goal-progress')?.textContent).toBe(`2/${String(total)}`);
+    const fill = panel.el.querySelector<HTMLElement>('.lg-bar__fill')!;
+    expect(fill.style.width).toBe(`${String((2 / total) * 100)}%`);
+  });
 
+  it('excludes completed trees and calls onCompleteTask with the card’s tree', () => {
+    const onCompleteTask = vi.fn();
+    const panel = createTasksPanel({ ...noDeps, onCompleteTask });
+    let state = stateWithThreeTrees();
+    state = advance(state, GOAL_TEMPLATES.sleep.tasks.length, 'tree-1'); // tree-1 done
+    state = advance(state, 2, 'tree-2');
+    panel.update({ ...state, focusedTreeId: undefined });
+
+    const cards = queryAll(panel.el, 'task-card');
+    expect(cards.map((card) => card.dataset['treeId'])).toEqual(['tree-2', 'tree-3']);
+
+    const checkbox = query(cards[0]!, 'next-task-checkbox') as HTMLInputElement;
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
     expect(onCompleteTask).toHaveBeenCalledTimes(1);
-    expect(onCompleteTask).toHaveBeenCalledWith(TREE_ID, 2);
+    expect(onCompleteTask).toHaveBeenCalledWith('tree-2', 2);
+  });
+
+  it('clicking a non-focused card calls onFocusTree; the focused card does not', () => {
+    const onFocusTree = vi.fn();
+    const panel = createTasksPanel({ ...noDeps, onFocusTree });
+    panel.update(stateWithThreeTrees());
+
+    const cards = queryAll(panel.el, 'task-card');
+    cards[1]!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onFocusTree).toHaveBeenCalledTimes(1);
+    expect(onFocusTree).toHaveBeenCalledWith('tree-2');
+
+    cards[0]!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onFocusTree).toHaveBeenCalledTimes(1);
+  });
+
+  it('checking a non-focused card’s checkbox completes without stealing focus', () => {
+    const onCompleteTask = vi.fn();
+    const onFocusTree = vi.fn();
+    const panel = createTasksPanel({ onCompleteTask, onFocusTree });
+    panel.update(stateWithThreeTrees());
+
+    const cards = queryAll(panel.el, 'task-card');
+    const checkbox = query(cards[1]!, 'next-task-checkbox') as HTMLInputElement;
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+    checkbox.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(onCompleteTask).toHaveBeenCalledWith('tree-2', 0);
+    expect(onFocusTree).not.toHaveBeenCalled();
   });
 
   it('does not change the rendered task on its own after the checkbox is checked', () => {
-    const panel = createTasksPanel({ onCompleteTask: () => {} });
+    const panel = createTasksPanel(noDeps);
     panel.update(stateWithTree());
 
     const checkbox = query(panel.el, 'next-task-checkbox') as HTMLInputElement;
@@ -80,7 +154,7 @@ describe('tasks panel', () => {
   });
 
   it('shows the following task after update with the advanced state', () => {
-    const panel = createTasksPanel({ onCompleteTask: () => {} });
+    const panel = createTasksPanel(noDeps);
     const state = stateWithTree();
     panel.update(state);
     panel.update(advance(state, 1));
@@ -91,25 +165,24 @@ describe('tasks panel', () => {
     expect(checkbox.checked).toBe(false);
   });
 
-  it('shows the idle body when nothing is focused', () => {
-    const panel = createTasksPanel({ onCompleteTask: () => {} });
+  it('still lists active trees when nothing is focused', () => {
+    const panel = createTasksPanel(noDeps);
     panel.update(stateWithTree({ focusedTreeId: undefined }));
 
-    expect(query(panel.el, 'tasks-panel-idle')).not.toBeNull();
-    expect(query(panel.el, 'next-task-checkbox')).toBeNull();
-    expect(query(panel.el, 'next-task-title')).toBeNull();
+    expect(queryAll(panel.el, 'task-card')).toHaveLength(1);
+    expect(query(panel.el, 'tasks-panel-idle')).toBeNull();
   });
 
-  it('shows the idle body when the focused tree id is unknown', () => {
-    const panel = createTasksPanel({ onCompleteTask: () => {} });
-    panel.update(stateWithTree({ focusedTreeId: 'no-such-tree' }));
+  it('shows the idle body when there are no trees', () => {
+    const panel = createTasksPanel(noDeps);
+    panel.update(stateWithTree({ trees: [], focusedTreeId: undefined }));
 
     expect(query(panel.el, 'tasks-panel-idle')).not.toBeNull();
     expect(query(panel.el, 'next-task-checkbox')).toBeNull();
   });
 
-  it('shows the idle body when the focused tree has completed', () => {
-    const panel = createTasksPanel({ onCompleteTask: () => {} });
+  it('shows the idle body when every tree has completed', () => {
+    const panel = createTasksPanel(noDeps);
     const state = advance(stateWithTree(), GOAL_TEMPLATES.sleep.tasks.length);
     panel.update(state);
 
@@ -119,7 +192,7 @@ describe('tasks panel', () => {
 
   it('does not duplicate DOM nodes or stack listeners across repeated updates', () => {
     const onCompleteTask = vi.fn();
-    const panel = createTasksPanel({ onCompleteTask });
+    const panel = createTasksPanel({ ...noDeps, onCompleteTask });
     const state = stateWithTree();
     panel.update(state);
     panel.update(state);

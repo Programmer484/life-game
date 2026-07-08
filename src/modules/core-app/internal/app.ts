@@ -123,8 +123,11 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
   };
 
   const tasksPanel = createTasksPanel({
-    onCompleteTask: () => {
-      game.completeNextTask();
+    onCompleteTask: (treeId) => {
+      game.completeTaskFor(treeId);
+    },
+    onFocusTree: (treeId) => {
+      game.focusTree(treeId);
     },
   });
   tasksPanel.el.style.maxWidth = '320px';

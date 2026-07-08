@@ -21,32 +21,33 @@ export interface ChatPanel {
 }
 
 const OFFLINE_NOTICE = 'Chat is unavailable.';
+/** Auto-scroll on new messages only when already this close to the bottom. */
+const NEAR_BOTTOM_PX = 40;
+const MAX_INPUT_ROWS = 4;
 
-/** Shared chat UI for the goal and reflection coaches: log + input + send. */
+/** Shared chat UI for the goal and reflection coaches: bubbles + textarea. */
 export function createChatPanel(): ChatPanel {
   ensureStyles();
   const el = document.createElement('div');
-  el.className = 'chat-panel';
+  el.className = 'chat-panel lg-chat';
   el.dataset['testid'] = 'chat-panel';
 
   const log = document.createElement('div');
-  log.className = 'chat-log lg-input';
+  log.className = 'chat-log lg-chat__log lg-input';
   log.dataset['testid'] = 'chat-log';
-  log.style.width = '280px';
-  log.style.height = '160px';
-  log.style.overflowY = 'auto';
-  log.style.marginBottom = 'var(--lg-space-2)';
   el.appendChild(log);
 
   const row = document.createElement('div');
   row.style.display = 'flex';
   row.style.gap = 'var(--lg-space-1)';
-  const input = document.createElement('input');
-  input.type = 'text';
+  row.style.alignItems = 'flex-end';
+  const input = document.createElement('textarea');
+  input.rows = 1;
   input.className = 'chat-input lg-input';
   input.dataset['testid'] = 'chat-input';
   input.placeholder = 'Type a message…';
   input.style.flex = '1';
+  input.style.resize = 'none';
   const send = document.createElement('button');
   send.type = 'button';
   send.className = 'chat-send lg-btn lg-btn--primary';
@@ -56,58 +57,121 @@ export function createChatPanel(): ChatPanel {
   el.appendChild(row);
 
   let session: ChatSession | undefined;
+  let busy = false;
+  let typing: HTMLElement | undefined;
 
-  function append(role: 'user' | 'assistant' | 'notice', text: string): void {
-    const line = document.createElement('div');
-    line.dataset['role'] = role;
-    line.textContent = role === 'user' ? `You: ${text}` : text;
-    if (role === 'notice') line.style.opacity = '0.7';
-    log.appendChild(line);
-    log.scrollTop = log.scrollHeight;
+  function nearBottom(): boolean {
+    return log.scrollHeight - log.scrollTop - log.clientHeight <= NEAR_BOTTOM_PX;
   }
 
-  function setBusy(busy: boolean): void {
+  /** Append `node`, scrolling only if the user was already near the bottom. */
+  function appendToLog(node: HTMLElement): void {
+    const follow = nearBottom();
+    log.appendChild(node);
+    if (follow) log.scrollTop = log.scrollHeight;
+  }
+
+  function lastRole(): string | undefined {
+    return log.lastElementChild instanceof HTMLElement
+      ? log.lastElementChild.dataset['role']
+      : undefined;
+  }
+
+  function bubble(role: 'user' | 'coach' | 'error', text: string): void {
+    const msg = document.createElement('div');
+    msg.className = `lg-chat__msg lg-chat__msg--${role}`;
+    msg.dataset['role'] = role;
+    // Label the first coach bubble of each coach run.
+    if (role === 'coach' && lastRole() !== 'coach') {
+      const label = document.createElement('span');
+      label.className = 'lg-chat__label';
+      label.textContent = 'Coach';
+      msg.appendChild(label);
+    }
+    msg.appendChild(document.createTextNode(text));
+    appendToLog(msg);
+  }
+
+  function showTyping(): void {
+    const msg = document.createElement('div');
+    msg.className = 'lg-chat__msg lg-chat__msg--coach lg-chat__typing';
+    msg.dataset['testid'] = 'chat-typing';
+    for (let i = 0; i < 3; i++) {
+      const dot = document.createElement('span');
+      dot.className = 'lg-chat__dot';
+      msg.appendChild(dot);
+    }
+    typing = msg;
+    appendToLog(msg);
+  }
+
+  function hideTyping(): void {
+    typing?.remove();
+    typing = undefined;
+  }
+
+  function syncControls(): void {
     input.disabled = busy || session === undefined;
-    send.disabled = busy || session === undefined;
+    send.disabled = busy || session === undefined || input.value.trim() === '';
+    input.rows = Math.min(MAX_INPUT_ROWS, input.value.split('\n').length);
+  }
+
+  function setBusy(next: boolean): void {
+    busy = next;
+    syncControls();
   }
 
   function submit(): void {
     const text = input.value.trim();
-    if (!session || !text) return;
+    if (!session || busy || !text) return;
     const active = session;
-    append('user', text);
+    bubble('user', text);
     input.value = '';
     setBusy(true);
+    showTyping();
     active
       .send(text)
       .then((reply) => {
         // Ignore replies from a conversation that was reset mid-flight.
-        if (session === active) append('assistant', reply);
+        if (session === active) bubble('coach', reply);
       })
       .catch((error: unknown) => {
         if (session !== active) return;
         // Server errors carry a user-facing message (e.g. the 503 no-key one).
         const message = error instanceof Error && error.message !== '' ? error.message : undefined;
-        append('notice', message ?? 'Something went wrong — try again.');
+        bubble('error', message ?? 'Something went wrong — try again.');
       })
       .finally(() => {
-        if (session === active) setBusy(false);
+        if (session !== active) return;
+        hideTyping();
+        setBusy(false);
       });
   }
 
   send.addEventListener('click', submit);
+  input.addEventListener('input', syncControls);
   input.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') submit();
+    // Enter sends; Shift+Enter falls through to insert a newline.
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      submit();
+    }
   });
 
   function start(next: ChatSession | undefined): void {
     session = next;
     log.replaceChildren();
+    typing = undefined;
     input.value = '';
     if (!session) {
-      append('notice', OFFLINE_NOTICE);
+      const notice = document.createElement('div');
+      notice.className = 'lg-chat__msg lg-chat__msg--coach';
+      notice.dataset['role'] = 'notice';
+      notice.style.opacity = '0.7';
+      notice.textContent = OFFLINE_NOTICE;
+      log.appendChild(notice);
     } else {
-      append('assistant', session.opening);
+      bubble('coach', session.opening);
     }
     setBusy(false);
   }

@@ -52,12 +52,13 @@ describe('ui / planting modal', () => {
     const log = query(modal.el, 'chat-log')!;
     expect(log.textContent).toContain('What do you want to grow?');
 
-    const input = query(modal.el, 'chat-input') as HTMLInputElement;
+    const input = query(modal.el, 'chat-input') as HTMLTextAreaElement;
     input.value = 'Sleep more';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
     click(query(modal.el, 'chat-send'));
 
     expect(send).toHaveBeenCalledWith('Sleep more');
-    expect(log.textContent).toContain('You: Sleep more');
+    expect(log.textContent).toContain('Sleep more');
     await vi.waitFor(() => {
       expect(log.textContent).toContain('Nice goal!');
     });

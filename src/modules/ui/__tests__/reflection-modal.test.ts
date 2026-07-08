@@ -37,7 +37,19 @@ describe('ui / reflection modal', () => {
     modal.open();
 
     expect(query(modal.el, 'chat-log')?.textContent).toContain('Chat is unavailable.');
-    expect((query(modal.el, 'chat-input') as HTMLInputElement).disabled).toBe(true);
+    expect((query(modal.el, 'chat-input') as HTMLTextAreaElement).disabled).toBe(true);
+  });
+
+  it('is a dedicated chat window: title, subtitle, and a fill-height chat', () => {
+    const modal = createReflectionModal({});
+
+    expect(query(modal.el, 'reflection-title')?.textContent).toBe('Reflection');
+    expect(query(modal.el, 'reflection-subtitle')?.textContent).toBe(
+      'Talk through your day with your coach.',
+    );
+    expect(modal.el.style.minWidth).toBe('420px');
+    expect(modal.el.style.height).toBe('70vh');
+    expect(query(modal.el, 'chat-panel')?.className).toContain('lg-chat--fill');
   });
 
   it('the close button hides the modal', () => {

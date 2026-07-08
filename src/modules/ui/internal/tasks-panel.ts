@@ -1,12 +1,13 @@
 // Internal implementation. Deep imports from other modules are blocked by lint.
-import type { TaskDef } from '../../config/index.ts';
-import { nextTaskIndex } from '../../entities/index.ts';
-import { focusedTree } from '../../systems/index.ts';
+import type { TaskDef, Tree } from '../../config/index.ts';
+import { nextTaskIndex, tasksDone } from '../../entities/index.ts';
+import { activeTrees } from '../../systems/index.ts';
 import type { GameplayState } from '../../systems/index.ts';
 import { ensureStyles } from './styles.ts';
 
 export interface TasksPanelDeps {
   onCompleteTask: (treeId: string, taskIndex: number) => void;
+  onFocusTree: (treeId: string) => void;
 }
 
 export interface TasksPanel {
@@ -15,8 +16,9 @@ export interface TasksPanel {
 }
 
 /**
- * The immediate-tasks panel: always shows the FOCUSED tree's NEXT task only.
- * Pure DOM overlay — reads state, pushes intent out via `onCompleteTask`, and
+ * The task list: one card per ACTIVE tree (focused first, then plant order),
+ * each showing the goal, its progress, and the next task. Pure DOM overlay —
+ * reads state, pushes intent out via `onCompleteTask` / `onFocusTree`, and
  * never mutates game state itself; it waits for the next `update(state)`.
  */
 export function createTasksPanel(deps: TasksPanelDeps): TasksPanel {
@@ -28,23 +30,19 @@ export function createTasksPanel(deps: TasksPanelDeps): TasksPanel {
   const body = document.createElement('div');
   body.className = 'tasks-panel-body';
   body.dataset['testid'] = 'tasks-panel-body';
+  body.style.maxHeight = '60vh';
+  body.style.overflowY = 'auto';
   el.appendChild(body);
 
   function renderIdle(): void {
     const idle = document.createElement('p');
     idle.className = 'tasks-panel-idle';
     idle.dataset['testid'] = 'tasks-panel-idle';
-    idle.textContent = 'No tree in focus. Plant or focus a tree to see its next task.';
+    idle.textContent = 'Plant a tree to get your first task.';
     body.appendChild(idle);
   }
 
-  function renderTask(treeId: string, goalName: string, taskIndex: number, task: TaskDef): void {
-    const heading = document.createElement('h3');
-    heading.className = 'goal-name';
-    heading.dataset['testid'] = 'goal-name';
-    heading.textContent = goalName;
-    heading.style.margin = '0 0 var(--lg-space-2)';
-
+  function renderTaskRow(treeId: string, taskIndex: number, task: TaskDef): HTMLElement {
     const row = document.createElement('label');
     row.className = 'next-task';
     row.dataset['testid'] = 'next-task';
@@ -71,27 +69,77 @@ export function createTasksPanel(deps: TasksPanelDeps): TasksPanel {
     minutes.textContent = `~${String(task.estimatedMinutes)} min`;
 
     row.append(checkbox, title, minutes);
-    body.append(heading, row);
+    return row;
+  }
+
+  function renderCard(state: GameplayState, tree: Tree, focused: boolean): void {
+    const goal = state.goals[tree.goalId];
+    if (goal === undefined) return;
+    const taskIndex = nextTaskIndex(goal);
+    const task = taskIndex === undefined ? undefined : goal.tasks[taskIndex];
+    if (taskIndex === undefined || task === undefined) return;
+
+    const card = document.createElement('article');
+    card.className = focused ? 'lg-task-card lg-task-card--focused' : 'lg-task-card';
+    card.dataset['testid'] = 'task-card';
+    card.dataset['treeId'] = tree.id;
+    if (focused) card.dataset['focused'] = 'true';
+
+    const heading = document.createElement('h3');
+    heading.className = 'goal-name';
+    heading.dataset['testid'] = 'goal-name';
+    heading.textContent = goal.name;
+    heading.style.margin = '0 0 var(--lg-space-1)';
+    heading.style.fontSize = '14px';
+
+    const progress = document.createElement('span');
+    progress.className = 'goal-progress';
+    progress.dataset['testid'] = 'goal-progress';
+    progress.textContent = `${String(tasksDone(goal))}/${String(goal.tasks.length)}`;
+    progress.style.marginLeft = 'var(--lg-space-2)';
+    progress.style.fontSize = '12px';
+    progress.style.opacity = '0.7';
+    heading.appendChild(progress);
+
+    const bar = document.createElement('div');
+    bar.className = 'lg-bar';
+    bar.style.height = '4px';
+    bar.style.marginBottom = 'var(--lg-space-2)';
+    const fill = document.createElement('div');
+    fill.className = 'lg-bar__fill';
+    fill.style.width = `${String((tasksDone(goal) / goal.tasks.length) * 100)}%`;
+    bar.appendChild(fill);
+
+    card.append(heading, bar, renderTaskRow(tree.id, taskIndex, task));
+
+    if (!focused) {
+      card.style.cursor = 'pointer';
+      card.addEventListener('click', (event) => {
+        // The checkbox completes the task; don't also steal focus from it.
+        if (event.target instanceof HTMLInputElement) return;
+        deps.onFocusTree(tree.id);
+      });
+    }
+    body.appendChild(card);
   }
 
   function update(state: GameplayState): void {
     // Re-render the body each call: replacing children drops the previous
-    // checkbox and its listener, so updates never stack DOM or listeners.
+    // checkboxes and their listeners, so updates never stack DOM or listeners.
     body.replaceChildren();
 
-    const tree = focusedTree(state);
-    if (!tree) {
+    const active = activeTrees(state.trees);
+    if (active.length === 0) {
       renderIdle();
       return;
     }
-    const goal = state.goals[tree.goalId];
-    const taskIndex = goal === undefined ? undefined : nextTaskIndex(goal);
-    const task = goal === undefined || taskIndex === undefined ? undefined : goal.tasks[taskIndex];
-    if (goal === undefined || taskIndex === undefined || task === undefined) {
-      renderIdle();
-      return;
-    }
-    renderTask(tree.id, goal.name, taskIndex, task);
+    // Focused card first; the rest keep plant order (state.trees order).
+    const ordered = [
+      ...active.filter((tree) => tree.id === state.focusedTreeId),
+      ...active.filter((tree) => tree.id !== state.focusedTreeId),
+    ];
+    for (const tree of ordered) renderCard(state, tree, tree.id === state.focusedTreeId);
+    if (body.childElementCount === 0) renderIdle();
   }
 
   return { el, update };
