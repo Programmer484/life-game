@@ -66,6 +66,10 @@ export const STAGE_TASKS = [3, 4, 5, 6] as const;
 /** Must equal the sum of STAGE_TASKS. */
 export const TASKS_PER_TREE = 18;
 
+/** Allowed range (inclusive) for a task's estimated minutes. */
+export const TASK_MINUTES_MIN = 5;
+export const TASK_MINUTES_MAX = 120;
+
 /** The 3×3 dead→vibrant reveal. */
 export const REVEAL_SIZE = { width: 3, height: 3 } as const;
 

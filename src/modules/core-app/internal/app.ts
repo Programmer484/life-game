@@ -14,6 +14,7 @@ import {
   createAuthScreen,
   createDevHelpModal,
   createDevPanel,
+  createEditGoalModal,
   createPlantingModal,
   createReflectButton,
   createReflectionModal,
@@ -131,23 +132,6 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
     overlay.appendChild(el);
   };
 
-  const tasksPanel = createTasksPanel({
-    onCompleteTask: (treeId) => {
-      game.completeTaskFor(treeId);
-    },
-    onFocusTree: (treeId) => {
-      game.focusTree(treeId);
-    },
-  });
-  tasksPanel.el.style.maxWidth = '320px';
-  dock(tasksPanel.el, { top: '16px', left: '16px' });
-
-  const xpBar = createXpBar();
-  dock(xpBar.el, { top: '16px', left: '50%', transform: 'translateX(-50%)' });
-
-  const treeSlots = createTreeSlots();
-  dock(treeSlots.el, { top: '40px', left: '50%', transform: 'translateX(-50%)' });
-
   // Toast host positions itself (fixed bottom-center) — appended, not docked.
   const toasts = createToastHost();
   overlay.appendChild(toasts.el);
@@ -160,6 +144,36 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
     const feedback = plantRejectionFeedback(reason, source);
     if (feedback) toasts.show(feedback.message, feedback.variant);
   };
+
+  // Built before the tasks panel so its "Edit tasks" button can open it.
+  const editGoalModal = createEditGoalModal({
+    onSave: (goalId, tasks) => {
+      const outcome = game.updateGoalTasks(goalId, tasks);
+      if (!outcome.ok) toasts.show('That edit was rejected — try again.', 'error');
+    },
+  });
+  dock(editGoalModal.el, { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
+
+  const tasksPanel = createTasksPanel({
+    onCompleteTask: (treeId) => {
+      game.completeTaskFor(treeId);
+    },
+    onFocusTree: (treeId) => {
+      game.focusTree(treeId);
+    },
+    onEditGoal: (goalId) => {
+      const goal = game.state().goals[goalId];
+      if (goal) editGoalModal.open(goal);
+    },
+  });
+  tasksPanel.el.style.maxWidth = '320px';
+  dock(tasksPanel.el, { top: '16px', left: '16px' });
+
+  const xpBar = createXpBar();
+  dock(xpBar.el, { top: '16px', left: '50%', transform: 'translateX(-50%)' });
+
+  const treeSlots = createTreeSlots();
+  dock(treeSlots.el, { top: '40px', left: '50%', transform: 'translateX(-50%)' });
 
   const coachTransport = createProxyTransport();
 
@@ -183,13 +197,32 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
   let devPanel: ReturnType<typeof createDevPanel> | undefined;
 
   const modal = createPlantingModal({
-    onPlant: ({ tile, templateKey, type }) => {
+    onPlant: ({ tile, type, goal }) => {
       const outcome = devPanel?.isPlantGrownEnabled()
-        ? game.devPlantFullyGrown(tile, templateKey, type)
-        : game.plantAt(tile, templateKey, type);
+        ? game.devPlantFullyGrown(tile, goal, type)
+        : game.plantAt(tile, goal, type);
       if (!outcome.ok) toastRejection(outcome.reason, 'plant');
     },
-    createGoalChat: coachFactory('goal', coachTransport, game),
+    // The goal-drafting chat: surface the coach's goalTemplate effect to the
+    // wizard (converting the coach's `minutes` to the task's estimatedMinutes)
+    // while still applying any memories through the game.
+    createGoalChat: (onDraft) =>
+      createCoachSession('goal', coachTransport, {
+        memory: game.coachMemory(),
+        config: game.coachConfig(),
+        onEffects: (effects) => {
+          if (effects.memories !== undefined) game.appendCoachMemories(effects.memories);
+          if (effects.goalTemplate !== undefined) {
+            onDraft({
+              name: effects.goalTemplate.name,
+              tasks: effects.goalTemplate.tasks.map((task) => ({
+                title: task.title,
+                estimatedMinutes: task.minutes,
+              })),
+            });
+          }
+        },
+      }),
   });
   dock(modal.el, { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
 
@@ -214,7 +247,8 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
     corner.insertBefore(panel.el, reflect.el); // stacked above the reflect button
 
     const shortcuts = createShortcuts({
-      isModalOpen: () => modal.isOpen() || reflectionModal.isOpen() || helpModal.isOpen(),
+      isModalOpen: () =>
+        modal.isOpen() || editGoalModal.isOpen() || reflectionModal.isOpen() || helpModal.isOpen(),
     });
     shortcuts.register('1', () => {
       game.devSkipStage();

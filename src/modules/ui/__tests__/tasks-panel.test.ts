@@ -52,7 +52,11 @@ function queryAll(el: HTMLElement, testid: string): HTMLElement[] {
   return [...el.querySelectorAll<HTMLElement>(`[data-testid="${testid}"]`)];
 }
 
-const noDeps = { onCompleteTask: (): void => {}, onFocusTree: (): void => {} };
+const noDeps = {
+  onCompleteTask: (): void => {},
+  onFocusTree: (): void => {},
+  onEditGoal: (): void => {},
+};
 
 describe('tasks panel', () => {
   it('shows the focused tree’s goal name, next task title, and estimated minutes', () => {
@@ -125,10 +129,24 @@ describe('tasks panel', () => {
     expect(onFocusTree).toHaveBeenCalledTimes(1);
   });
 
+  it('each card has an Edit tasks button that calls onEditGoal with the goal id, not focus', () => {
+    const onEditGoal = vi.fn();
+    const onFocusTree = vi.fn();
+    const panel = createTasksPanel({ ...noDeps, onEditGoal, onFocusTree });
+    panel.update(stateWithThreeTrees({ focusedTreeId: 'tree-2' }));
+
+    const cards = queryAll(panel.el, 'task-card');
+    const edit = query(cards[1]!, 'edit-goal'); // a non-focused card
+    edit!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onEditGoal).toHaveBeenCalledTimes(1);
+    expect(onEditGoal).toHaveBeenCalledWith('goal-1');
+    expect(onFocusTree).not.toHaveBeenCalled();
+  });
+
   it('checking a non-focused card’s checkbox completes without stealing focus', () => {
     const onCompleteTask = vi.fn();
     const onFocusTree = vi.fn();
-    const panel = createTasksPanel({ onCompleteTask, onFocusTree });
+    const panel = createTasksPanel({ onCompleteTask, onFocusTree, onEditGoal: () => {} });
     panel.update(stateWithThreeTrees());
 
     const cards = queryAll(panel.el, 'task-card');

@@ -3,6 +3,8 @@ export type { AuthScreen, AuthScreenDeps } from './internal/auth-screen.ts';
 export { createAuthScreen } from './internal/auth-screen.ts';
 export type { ChatSession } from './internal/chat-panel.ts';
 export { createDevHelpModal } from './internal/dev-help-modal.ts';
+export type { EditGoalModal, EditGoalModalDeps } from './internal/edit-goal-modal.ts';
+export { createEditGoalModal } from './internal/edit-goal-modal.ts';
 export { isDevMode } from './internal/dev-mode.ts';
 export type { DevPanel, DevPanelDeps } from './internal/dev-panel.ts';
 export { createDevPanel } from './internal/dev-panel.ts';

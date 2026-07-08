@@ -3,12 +3,19 @@
 // re-renders; the acceptance tests drive it over the null gateways.
 import type { CoachConfig, CoachMemory } from '../../coach/index.ts';
 import { appendMemoryFacts } from '../../coach/index.ts';
-import type { GrowthStage, TileCoord, TreeType, Vibrancy } from '../../config/index.ts';
-import { GOAL_TEMPLATES, TASKS_PER_TREE, UNLOCK_COST_BY_SECTION } from '../../config/index.ts';
+import type {
+  GoalTemplate,
+  GrowthStage,
+  TaskDef,
+  TileCoord,
+  TreeType,
+  Vibrancy,
+} from '../../config/index.ts';
+import { TASKS_PER_TREE, UNLOCK_COST_BY_SECTION } from '../../config/index.ts';
 import { createGoal, nextTaskIndex, taskCompletedEvent } from '../../entities/index.ts';
 import type { AuthResult, AutosaverTimers, Gateways } from '../../save/index.ts';
 import { createAutosaver, loadOrCreate } from '../../save/index.ts';
-import type { GameplayState, PlantRejection } from '../../systems/index.ts';
+import type { GameplayState, GoalEditRejection, PlantRejection } from '../../systems/index.ts';
 import {
   activeTrees,
   applyProgression,
@@ -19,12 +26,16 @@ import {
   isComplete,
   plantTree,
   stageOf,
+  updateGoalTasks as applyGoalEdit,
 } from '../../systems/index.ts';
 import { createWorld, isSectionUnlocked, unlockSection, vibrancyMap } from '../../world/index.ts';
 
-export type TemplateKey = keyof typeof GOAL_TEMPLATES;
+/** A player-authored (or template-derived) goal: a name plus its 18 tasks. */
+export type GoalDraft = GoalTemplate;
 
 export type PlantOutcome = { ok: true; treeId: string } | { ok: false; reason: PlantRejection };
+
+export type GoalEditOutcome = { ok: true } | { ok: false; reason: GoalEditRejection };
 
 /** Precomputed marker data for render — keeps game logic out of render. */
 export interface TreeViewModel {
@@ -46,13 +57,15 @@ export interface Game {
   completeNextTask(): void;
   /** Complete `treeId`'s next task; no-op for unknown or complete trees. */
   completeTaskFor(treeId: string): void;
-  plantAt(tile: TileCoord, templateKey: TemplateKey, type: TreeType): PlantOutcome;
+  plantAt(tile: TileCoord, draft: GoalDraft, type: TreeType): PlantOutcome;
   canPlantAt(tile: TileCoord): ReturnType<typeof canPlant>;
   focusTree(id: string): void;
+  /** Replace a goal's task list (editing an existing tree); rejection is typed. */
+  updateGoalTasks(goalId: string, tasks: readonly TaskDef[]): GoalEditOutcome;
   /** Dev: complete the focused tree's remaining tasks in its CURRENT stage. */
   devSkipStage(): void;
   /** Dev: the normal plant flow, then all 18 tasks completed (PRD shortcut). */
-  devPlantFullyGrown(tile: TileCoord, templateKey: TemplateKey, type: TreeType): PlantOutcome;
+  devPlantFullyGrown(tile: TileCoord, draft: GoalDraft, type: TreeType): PlantOutcome;
   /** Dev: unlock the cheapest locked section, ignoring its cost; no-op when none left. */
   devUnlockNextSection(): void;
   /** Persist any pending autosave immediately (used on reload/teardown). */
@@ -131,9 +144,9 @@ export function createGame(gateways: Gateways, timers?: AutosaverTimers): Game {
     notify();
   }
 
-  function plantAt(tile: TileCoord, templateKey: TemplateKey, type: TreeType): PlantOutcome {
+  function plantAt(tile: TileCoord, draft: GoalDraft, type: TreeType): PlantOutcome {
     const serial = String(state.trees.length + 1);
-    const goal = createGoal(`goal-${serial}`, GOAL_TEMPLATES[templateKey]);
+    const goal = createGoal(`goal-${serial}`, draft);
     const planted = plantTree(state, { id: `tree-${serial}`, tile, type, goal });
     if (planted.rejected !== undefined) return { ok: false, reason: planted.rejected };
     state = applyProgression(planted.state);
@@ -172,6 +185,14 @@ export function createGame(gateways: Gateways, timers?: AutosaverTimers): Game {
       state = next;
       notify();
     },
+    updateGoalTasks(goalId, tasks) {
+      const result = applyGoalEdit(state, goalId, tasks);
+      if (!result.ok) return result;
+      state = result.state;
+      persist();
+      notify();
+      return { ok: true };
+    },
     devSkipStage() {
       let tree = focusedTree(state);
       if (!tree) return;
@@ -184,9 +205,9 @@ export function createGame(gateways: Gateways, timers?: AutosaverTimers): Game {
         if (tree && tree.tasksDone === before) return; // guard against stalls
       }
     },
-    devPlantFullyGrown(tile, templateKey, type) {
+    devPlantFullyGrown(tile, draft, type) {
       const previousFocus = state.focusedTreeId;
-      const outcome = plantAt(tile, templateKey, type);
+      const outcome = plantAt(tile, draft, type);
       if (!outcome.ok) return outcome;
       for (let i = 0; i < TASKS_PER_TREE; i++) completeFor(outcome.treeId);
       // The finished tree cannot stay focused — restore the previous focus.

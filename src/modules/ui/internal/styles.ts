@@ -129,6 +129,130 @@ const CSS = /* css */ `
   border-color: var(--lg-accent);
   box-shadow: 0 0 0 2px rgba(100, 160, 71, 0.35);
 }
+.lg-input--error {
+  border-color: var(--lg-danger);
+}
+.lg-input--error:focus {
+  border-color: var(--lg-danger);
+  box-shadow: 0 0 0 2px rgba(192, 80, 62, 0.35);
+}
+
+/* ── Wizard (planting modal) ─────────────────────────────────────────── */
+.lg-steps {
+  display: flex;
+  gap: var(--lg-space-2);
+  margin-bottom: var(--lg-space-3);
+  font-size: 12px;
+  opacity: 0.7;
+}
+.lg-steps__step[data-active] {
+  color: var(--lg-accent-bright);
+  opacity: 1;
+  font-weight: 600;
+}
+.lg-step {
+  animation: lg-step-in 0.18s ease-out;
+}
+@keyframes lg-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lg-step {
+    animation: none;
+  }
+}
+.lg-option-cards {
+  display: flex;
+  gap: var(--lg-space-2);
+  margin: var(--lg-space-2) 0;
+}
+.lg-option-card {
+  flex: 1;
+  padding: var(--lg-space-3);
+  border: 1px solid rgba(232, 230, 225, 0.25);
+  border-radius: var(--lg-radius);
+  background: #191c23;
+  color: var(--lg-fg);
+  font-family: var(--lg-font);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.lg-option-card[aria-pressed='true'] {
+  border-color: var(--lg-accent);
+}
+.lg-template-card {
+  display: block;
+  width: 100%;
+  margin-top: var(--lg-space-2);
+  padding: var(--lg-space-2);
+  border: 1px solid rgba(232, 230, 225, 0.25);
+  border-radius: var(--lg-radius);
+  background: #191c23;
+  color: var(--lg-fg);
+  font-family: var(--lg-font);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.lg-template-card:hover {
+  border-color: var(--lg-accent);
+}
+.lg-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--lg-space-2);
+  margin-top: var(--lg-space-3);
+}
+.lg-footer__spacer {
+  flex: 1;
+}
+
+/* ── Task editor ─────────────────────────────────────────────────────── */
+.lg-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lg-space-1);
+  max-height: 60vh;
+  overflow-y: auto;
+  width: 420px;
+  max-width: 80vw;
+}
+.lg-editor__stage {
+  margin: var(--lg-space-2) 0 var(--lg-space-1);
+  font-size: 12px;
+  opacity: 0.7;
+}
+.lg-editor__row {
+  display: flex;
+  gap: var(--lg-space-1);
+  align-items: center;
+}
+.lg-editor__index {
+  width: 1.5em;
+  font-size: 12px;
+  opacity: 0.6;
+  text-align: right;
+}
+.lg-editor__title {
+  flex: 1;
+}
+.lg-editor__minutes {
+  width: 4.5em;
+}
+.lg-editor__row[data-locked] {
+  opacity: 0.6;
+}
+.lg-editor__lock {
+  color: var(--lg-accent);
+}
 
 .lg-bar {
   overflow: hidden;

@@ -8,6 +8,7 @@ import { ensureStyles } from './styles.ts';
 export interface TasksPanelDeps {
   onCompleteTask: (treeId: string, taskIndex: number) => void;
   onFocusTree: (treeId: string) => void;
+  onEditGoal: (goalId: string) => void;
 }
 
 export interface TasksPanel {
@@ -110,7 +111,19 @@ export function createTasksPanel(deps: TasksPanelDeps): TasksPanel {
     fill.style.width = `${String((tasksDone(goal) / goal.tasks.length) * 100)}%`;
     bar.appendChild(fill);
 
-    card.append(heading, bar, renderTaskRow(tree.id, taskIndex, task));
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'lg-btn lg-btn--ghost';
+    edit.dataset['testid'] = 'edit-goal';
+    edit.textContent = 'Edit tasks';
+    edit.style.marginTop = 'var(--lg-space-2)';
+    edit.style.fontSize = '12px';
+    edit.addEventListener('click', (event) => {
+      event.stopPropagation(); // don't also focus the card
+      deps.onEditGoal(goal.id);
+    });
+
+    card.append(heading, bar, renderTaskRow(tree.id, taskIndex, task), edit);
 
     if (!focused) {
       card.style.cursor = 'pointer';

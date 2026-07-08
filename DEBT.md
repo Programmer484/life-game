@@ -31,6 +31,19 @@ The `_example` reference module is included in the coverage aggregate,
 trivially inflating the numbers. Wontfix: the inflation is negligible and
 the module is framework-owned scaffolding kept for its documentation value.
 
+## DEBT-8: editing an existing goal's name is not persisted
+
+severity: low — module: systems — found: 2026-07-08 — status: open
+
+The task editor exposes an editable goal-name field, and the edit-goal modal
+shows it for already-planted trees, but `systems.updateGoalTasks(state,
+goalId, tasks)` (and `game.updateGoalTasks`) intentionally take only the task
+list per the PRD-E signature — so a renamed goal on an existing tree silently
+keeps its old name on Save. Not fixed here to stay within the specified
+signature; a follow-up can thread the name through the mutation (or lock the
+name field read-only in the edit-goal modal) once the desired behavior is
+decided.
+
 ## DEBT-4: save/supabase-gateways.ts is an untested-by-design thin adapter
 
 severity: low — module: save — found: 2026-07-05 — status: wontfix
