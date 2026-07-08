@@ -14,5 +14,6 @@
     ".claude/hooks/**/*.ts",
     "test/**/*.ts",
     "api/**/*.ts"
-  ]
+  ],
+  "ignoreDependencies": ["vite"]
 }
