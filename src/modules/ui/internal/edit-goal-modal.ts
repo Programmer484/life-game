@@ -6,8 +6,8 @@ import { createTaskEditor } from './task-editor.ts';
 import type { TaskEditor } from './task-editor.ts';
 
 export interface EditGoalModalDeps {
-  /** Report the edited task list for an existing goal; host applies + toasts. */
-  onSave: (goalId: string, tasks: TaskDef[]) => void;
+  /** Report the edited name + task list for an existing goal; host applies + toasts. */
+  onSave: (goalId: string, name: string, tasks: TaskDef[]) => void;
 }
 
 export interface EditGoalModal {
@@ -29,7 +29,7 @@ function button(testid: string, label: string, variant?: 'primary' | 'ghost'): H
 /**
  * Edit an already-planted tree's goal: the same task editor as the planting
  * wizard, but with the completed prefix locked (read-only) since history is
- * immutable. Save reports the full 18-task list via `onSave`; the host applies
+ * immutable. Save reports the edited name + full 18-task list via `onSave`; the host applies
  * it through `game.updateGoalTasks` and surfaces any rejection as a toast.
  */
 export function createEditGoalModal(deps: EditGoalModalDeps): EditGoalModal {
@@ -84,9 +84,9 @@ export function createEditGoalModal(deps: EditGoalModalDeps): EditGoalModal {
     save.addEventListener('click', () => {
       if (openGoalId === undefined || !editor?.isValid()) return;
       const goalId = openGoalId;
-      const tasks = editor.value().tasks;
+      const { name, tasks } = editor.value();
       close();
-      deps.onSave(goalId, tasks);
+      deps.onSave(goalId, name, tasks);
     });
 
     const footer = document.createElement('div');

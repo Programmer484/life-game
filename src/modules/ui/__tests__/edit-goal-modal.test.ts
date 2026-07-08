@@ -36,10 +36,14 @@ describe('ui / edit-goal modal', () => {
     expect(locked).toHaveLength(3);
   });
 
-  it('Save reports the edited task list for the goal id, then closes', () => {
-    const onSave = vi.fn<(id: string, tasks: unknown[]) => void>();
+  it('Save reports the edited name + task list for the goal id, then closes', () => {
+    const onSave = vi.fn<(id: string, name: string, tasks: unknown[]) => void>();
     const modal = createEditGoalModal({ onSave });
     modal.open(goalWithDone(2));
+
+    const name = query(modal.el, 'goal-name-input') as HTMLInputElement;
+    name.value = 'Renamed goal';
+    name.dispatchEvent(new Event('input', { bubbles: true }));
 
     const title = queryAll(modal.el, 'task-title')[5] as HTMLInputElement;
     title.value = 'reworked task';
@@ -47,8 +51,9 @@ describe('ui / edit-goal modal', () => {
 
     click(query(modal.el, 'goal-save'));
     expect(onSave).toHaveBeenCalledTimes(1);
-    const [id, tasks] = onSave.mock.calls[0]!;
+    const [id, savedName, tasks] = onSave.mock.calls[0]!;
     expect(id).toBe('goal-1');
+    expect(savedName).toBe('Renamed goal');
     expect(tasks).toHaveLength(18);
     expect((tasks[5] as { title: string }).title).toBe('reworked task');
     expect(modal.isOpen()).toBe(false);

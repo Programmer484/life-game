@@ -33,16 +33,18 @@ the module is framework-owned scaffolding kept for its documentation value.
 
 ## DEBT-8: editing an existing goal's name is not persisted
 
-severity: low — module: systems — found: 2026-07-08 — status: open
+severity: low — module: systems — found: 2026-07-08 — status: fixed
+fixed-by: fix(ui): persist goal rename when editing a planted tree (DEBT-8)
 
 The task editor exposes an editable goal-name field, and the edit-goal modal
 shows it for already-planted trees, but `systems.updateGoalTasks(state,
 goalId, tasks)` (and `game.updateGoalTasks`) intentionally take only the task
 list per the PRD-E signature — so a renamed goal on an existing tree silently
-keeps its old name on Save. Not fixed here to stay within the specified
-signature; a follow-up can thread the name through the mutation (or lock the
-name field read-only in the edit-goal modal) once the desired behavior is
-decided.
+keeps its old name on Save. Fixed by widening the mutation to
+`updateGoalTasks(state, goalId, name, tasks)`: the name is validated
+non-empty (new `invalid-name` rejection), trimmed, and set on the goal
+alongside the tasks; the edit-goal modal now forwards the editor's edited
+name through `onSave` so the rename persists.
 
 ## DEBT-4: save/supabase-gateways.ts is an untested-by-design thin adapter
 

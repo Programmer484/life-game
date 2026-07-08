@@ -377,13 +377,14 @@ describe('updateGoalTasks — editing an existing goal', () => {
     const edited = customDraft.tasks.map((task, i) =>
       i === 5 ? { ...task, title: 'edited upcoming' } : task,
     );
-    expect(first.updateGoalTasks(goalId, edited)).toEqual({ ok: true });
+    expect(first.updateGoalTasks(goalId, 'Renamed Custom', edited)).toEqual({ ok: true });
+    expect(first.state().goals[goalId]!.name).toBe('Renamed Custom');
     expect(first.state().goals[goalId]!.tasks[5]!.title).toBe('edited upcoming');
     await first.flushSave();
 
     const second = createGame(gateways);
     await second.signIn(EMAIL, PASSWORD);
-    expect(second.state().goals[goalId]!.name).toBe('Custom');
+    expect(second.state().goals[goalId]!.name).toBe('Renamed Custom');
     expect(second.state().goals[goalId]!.tasks[5]!.title).toBe('edited upcoming');
   });
 
@@ -396,11 +397,11 @@ describe('updateGoalTasks — editing an existing goal', () => {
     const rewrite = customDraft.tasks.map((task, i) =>
       i === 0 ? { ...task, title: 'rewritten' } : task,
     );
-    expect(game.updateGoalTasks(tree.goalId, rewrite)).toEqual({
+    expect(game.updateGoalTasks(tree.goalId, 'Custom', rewrite)).toEqual({
       ok: false,
       reason: 'locked-changed',
     });
-    expect(game.updateGoalTasks('no-such-goal', customDraft.tasks)).toEqual({
+    expect(game.updateGoalTasks('no-such-goal', 'Custom', customDraft.tasks)).toEqual({
       ok: false,
       reason: 'unknown-goal',
     });
