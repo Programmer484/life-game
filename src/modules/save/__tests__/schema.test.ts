@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { migrateSave, createDemoState, toSave } from '../index.ts';
 
 describe('save · migrateSave', () => {
@@ -14,6 +14,21 @@ describe('save · migrateSave', () => {
     const data = { ...toSave(demo), version: 2 };
 
     expect(migrateSave(data)).toBeNull();
+  });
+
+  it('drops unknown section ids with a warning instead of crashing', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const demo = createDemoState();
+      const data = toSave(demo);
+      const dirty = { ...data, unlockedSections: [...data.unlockedSections, 999, -1] };
+
+      const migrated = migrateSave(dirty);
+      expect(migrated?.unlockedSections).toEqual(data.unlockedSections);
+      expect(warn).toHaveBeenCalledOnce();
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('returns null for malformed payloads', () => {

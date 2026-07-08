@@ -93,18 +93,16 @@ function rectTiles(x0: number, x1: number, y0: number, y1: number): TileCoord[] 
 }
 
 /**
- * Hard-coded jagged floating island: 7 contiguous, mutually adjacent
- * sections. Blocks are offset from one another so the union of all tiles is
- * jagged, never a filled rectangle.
- *
- *            ┌──6──┐
- *          ┌─┴──┬──┴┐
- *         ┌5  1 │ 2 ├─┐
- *         └─┬───┼───┤7│
- *           │ 3 │ 4 ├─┘
- *           └───┴───┘
+ * Hard-coded jagged floating island: 25 contiguous sections growing outward
+ * from section 1 in rough rings. Sections 1–7 are the original core (coords
+ * frozen so existing saves and the demo state stay valid); 8–25 form two
+ * irregular outer rings. Rectangles are 30–40 tiles and staggered so the
+ * union of all tiles is a blobby silhouette, never a filled rectangle. Every
+ * section shares an edge with an earlier section, so unlocking always grows
+ * the island outward from section 1.
  */
 export const ISLAND_LAYOUT: SectionDef[] = [
+  // Rings 0–1: the original 7-section core (coords frozen).
   { id: 1, unlockedAtStart: true, tiles: rectTiles(0, 5, 0, 5) }, // 36
   { id: 2, unlockedAtStart: false, tiles: rectTiles(6, 11, 0, 5) }, // 36
   { id: 3, unlockedAtStart: false, tiles: rectTiles(0, 5, 6, 11) }, // 36
@@ -112,10 +110,36 @@ export const ISLAND_LAYOUT: SectionDef[] = [
   { id: 5, unlockedAtStart: false, tiles: rectTiles(-6, -1, 1, 6) }, // 36
   { id: 6, unlockedAtStart: false, tiles: rectTiles(1, 8, -5, -1) }, // 40
   { id: 7, unlockedAtStart: false, tiles: rectTiles(12, 17, 2, 7) }, // 36
+  // Ring 2: wraps the core on all sides.
+  { id: 8, unlockedAtStart: false, tiles: rectTiles(12, 17, 8, 12) }, // 30
+  { id: 9, unlockedAtStart: false, tiles: rectTiles(6, 11, 12, 16) }, // 30
+  { id: 10, unlockedAtStart: false, tiles: rectTiles(0, 5, 12, 16) }, // 30
+  { id: 11, unlockedAtStart: false, tiles: rectTiles(-6, -1, 7, 12) }, // 36
+  { id: 12, unlockedAtStart: false, tiles: rectTiles(-12, -7, 1, 6) }, // 36
+  { id: 13, unlockedAtStart: false, tiles: rectTiles(-6, -1, -4, 0) }, // 30
+  { id: 14, unlockedAtStart: false, tiles: rectTiles(9, 14, -5, -1) }, // 30
+  { id: 15, unlockedAtStart: false, tiles: rectTiles(1, 8, -10, -6) }, // 40
+  { id: 16, unlockedAtStart: false, tiles: rectTiles(18, 23, 2, 7) }, // 36
+  // Ring 3: outer edge, staggered for an irregular coastline.
+  { id: 17, unlockedAtStart: false, tiles: rectTiles(12, 17, 13, 17) }, // 30
+  { id: 18, unlockedAtStart: false, tiles: rectTiles(-12, -7, 7, 12) }, // 36
+  { id: 19, unlockedAtStart: false, tiles: rectTiles(-6, -1, 13, 17) }, // 30
+  { id: 20, unlockedAtStart: false, tiles: rectTiles(9, 14, -10, -6) }, // 30
+  { id: 21, unlockedAtStart: false, tiles: rectTiles(-12, -7, -4, 0) }, // 30
+  { id: 22, unlockedAtStart: false, tiles: rectTiles(18, 23, 8, 12) }, // 30
+  { id: 23, unlockedAtStart: false, tiles: rectTiles(-5, 0, -9, -5) }, // 30
+  { id: 24, unlockedAtStart: false, tiles: rectTiles(15, 20, -4, 1) }, // 36
+  { id: 25, unlockedAtStart: false, tiles: rectTiles(6, 11, 17, 21) }, // 30
 ];
 
-/** Fully-grown trees needed to unlock the locked sections, in layout order. */
-const UNLOCK_COST_SEQUENCE = [4, 8, 16, 32, 64, 128] as const;
+/**
+ * Fully-grown trees needed to unlock the locked sections, in layout order.
+ * This literal array is the single source of truth; its values follow the
+ * curve cost(i) = max(prev + 1, round(4 * 1.22^i)) — early-fast, late-slow.
+ */
+const UNLOCK_COST_SEQUENCE = [
+  4, 5, 6, 7, 9, 11, 13, 16, 20, 24, 29, 36, 43, 53, 65, 79, 96, 118, 143, 175, 213, 260, 318, 388,
+] as const;
 
 /**
  * Fully-grown-tree cost to unlock a section, keyed by section id. Derived

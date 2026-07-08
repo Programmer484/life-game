@@ -1,4 +1,5 @@
 // Internal implementation. Deep imports from other modules are blocked by lint.
+import { ISLAND_LAYOUT } from '../../config/index.ts';
 import type { Goal, TileCoord, TreeType } from '../../config/index.ts';
 
 /** Persisted tree — the plain-data subset of Tree (focus is NOT persisted). */
@@ -44,7 +45,24 @@ function isValidV1(raw: Record<string, unknown>): boolean {
 export function migrateSave(raw: unknown): SaveData | null {
   if (!isRecord(raw)) return null;
   if (raw['version'] === 1) {
-    return isValidV1(raw) ? (raw as unknown as SaveDataV1) : null;
+    return isValidV1(raw) ? dropUnknownSections(raw as unknown as SaveDataV1) : null;
   }
   return null;
+}
+
+const KNOWN_SECTION_IDS = new Set(ISLAND_LAYOUT.map((section) => section.id));
+
+/**
+ * A save written against a different layout may reference section ids the
+ * current ISLAND_LAYOUT no longer has. Drop them with a warning instead of
+ * crashing downstream world reconstruction.
+ */
+function dropUnknownSections(save: SaveDataV1): SaveDataV1 {
+  const unknown = save.unlockedSections.filter((id) => !KNOWN_SECTION_IDS.has(id));
+  if (unknown.length === 0) return save;
+  console.warn(`save: dropping unknown section ids ${unknown.join(', ')}`);
+  return {
+    ...save,
+    unlockedSections: save.unlockedSections.filter((id) => KNOWN_SECTION_IDS.has(id)),
+  };
 }

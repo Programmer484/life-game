@@ -35,11 +35,12 @@ describe('ui / xp bar', () => {
     expect(bar.el.hasAttribute('data-full')).toBe(false);
   });
 
-  it('renders a 50% fill for 4 fully grown trees when section 2 is already unlocked', () => {
+  it('renders an 80% fill for 4 fully grown trees when section 2 is already unlocked', () => {
+    // Section 3 costs 5, so 4 fully grown trees fill 4/5 = 80% of the bar.
     const bar = createXpBar();
     bar.update(stateWith(grownTrees(4), [2]));
 
-    expect(query(bar.el, 'xp-bar-fill')?.style.width).toBe('50%');
+    expect(query(bar.el, 'xp-bar-fill')?.style.width).toBe('80%');
     expect(bar.el.hasAttribute('data-full')).toBe(false);
   });
 
