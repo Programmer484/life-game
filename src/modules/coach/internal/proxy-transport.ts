@@ -1,17 +1,17 @@
 // Internal implementation. Deep imports from other modules are blocked by lint.
-import type { CoachTransport } from './session.ts';
+import type { CoachTransport, CoachTransportResult } from './session.ts';
 
 /**
- * Browser transport: POSTs the mode + history to the same-origin coach proxy
- * (Vite dev plugin in dev, the Vercel function in prod). No API key ever
- * reaches the client bundle.
+ * Browser transport: POSTs the mode + history + memory + config to the
+ * same-origin coach proxy (Vite dev plugin in dev, the Vercel function in
+ * prod). No API key ever reaches the client bundle.
  */
 export function createProxyTransport(endpoint = '/api/coach'): CoachTransport {
-  return async (mode, messages) => {
+  return async (request) => {
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ mode, messages }),
+      body: JSON.stringify(request),
     });
     if (!response.ok) {
       const error = await response
@@ -24,7 +24,6 @@ export function createProxyTransport(endpoint = '/api/coach'): CoachTransport {
         .catch(() => undefined);
       throw new Error(error ?? `Coach request failed (${String(response.status)})`);
     }
-    const body = (await response.json()) as { reply: string };
-    return body.reply;
+    return (await response.json()) as CoachTransportResult;
   };
 }

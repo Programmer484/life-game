@@ -27,6 +27,7 @@ describe('save · round-trip', () => {
     expect(restored.trees).toEqual(demo.trees);
     expect(restored.goals).toEqual(demo.goals);
     expect(restored.storySeen).toBe(demo.storySeen);
+    expect(restored.coach).toEqual(demo.coach);
   });
 
   it('reproduces a richer state: section 2 unlocked, one complete and one mid-progress tree', () => {
@@ -52,6 +53,10 @@ describe('save · round-trip', () => {
       trees: [...demo.trees, doneTree, midTree],
       goals: { ...demo.goals, [doneGoal.id]: doneGoal, [midGoal.id]: midGoal },
       storySeen: true,
+      coach: {
+        memory: { facts: ['Night owl', 'Prefers small steps'] },
+        config: { tone: 'gentle' as const, customInstructions: 'Keep it short' },
+      },
     };
 
     const restored = fromSave(toSave(state));
@@ -60,19 +65,23 @@ describe('save · round-trip', () => {
     expect(restored.trees).toEqual(state.trees);
     expect(restored.goals).toEqual(state.goals);
     expect(restored.storySeen).toBe(true);
+    expect(restored.coach).toEqual(state.coach);
+    // Deep copy, not aliasing: the restored coach is a distinct object graph.
+    expect(restored.coach.memory.facts).not.toBe(state.coach.memory.facts);
   });
 
-  it('does not persist focus: toSave carries only version, storySeen, sections, trees, goals', () => {
+  it('does not persist focus: toSave carries only version, storySeen, sections, trees, goals, coach', () => {
     const data = toSave(createDemoState());
 
     expect(Object.keys(data).sort()).toEqual([
+      'coach',
       'goals',
       'storySeen',
       'trees',
       'unlockedSections',
       'version',
     ]);
-    expect(data.version).toBe(1);
+    expect(data.version).toBe(2);
   });
 });
 
@@ -109,7 +118,9 @@ describe('save · demo state', () => {
     }
   });
 
-  it('starts with storySeen false', () => {
-    expect(createDemoState().storySeen).toBe(false);
+  it('starts with storySeen false and a fresh coach', () => {
+    const demo = createDemoState();
+    expect(demo.storySeen).toBe(false);
+    expect(demo.coach).toEqual({ memory: { facts: [] }, config: {} });
   });
 });

@@ -1,5 +1,5 @@
 // Public surface of the save module. Other modules import ONLY from here.
-export type { SaveData, SaveDataV1, SavedTree } from './internal/schema.ts';
+export type { SaveData, SaveDataV1, SaveDataV2, SavedCoach, SavedTree } from './internal/schema.ts';
 export { migrateSave } from './internal/schema.ts';
 export type { GameState, SaveInput } from './internal/serialize.ts';
 export { createDemoState, fromSave, toSave } from './internal/serialize.ts';

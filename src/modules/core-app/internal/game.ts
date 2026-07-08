@@ -1,6 +1,8 @@
 // Headless game controller: the full v1 event flow with NO Pixi and NO DOM.
 // The thin shell (app.ts) drives it through these methods and subscribes for
 // re-renders; the acceptance tests drive it over the null gateways.
+import type { CoachConfig, CoachMemory } from '../../coach/index.ts';
+import { appendMemoryFacts } from '../../coach/index.ts';
 import type { GrowthStage, TileCoord, TreeType, Vibrancy } from '../../config/index.ts';
 import { GOAL_TEMPLATES, TASKS_PER_TREE } from '../../config/index.ts';
 import { createGoal, nextTaskIndex, taskCompletedEvent } from '../../entities/index.ts';
@@ -51,6 +53,11 @@ export interface Game {
   devPlantFullyGrown(tile: TileCoord, templateKey: TemplateKey, type: TreeType): PlantOutcome;
   /** Persist any pending autosave immediately (used on reload/teardown). */
   flushSave(): Promise<void>;
+  coachMemory(): CoachMemory;
+  coachConfig(): CoachConfig;
+  /** Append coach memories (FIFO-capped in the coach module); autosaved. */
+  appendCoachMemories(facts: readonly string[]): void;
+  setCoachConfig(config: CoachConfig): void;
   treeViewModels(): TreeViewModel[];
   /**
    * Precomputed per-tile vibrancy for render, keyed `"x,y"` over every island
@@ -64,6 +71,8 @@ const AUTOSAVE_DEBOUNCE_MS = 800;
 export function createGame(gateways: Gateways, timers?: AutosaverTimers): Game {
   let state: GameplayState = { world: createWorld(), trees: [], goals: {} };
   let seenStory = false;
+  let coachMemory: CoachMemory = { facts: [] };
+  let coachConfig: CoachConfig = {};
   const autosaver = createAutosaver(gateways.store, AUTOSAVE_DEBOUNCE_MS, timers);
   const listeners = new Set<() => void>();
 
@@ -77,6 +86,7 @@ export function createGame(gateways: Gateways, timers?: AutosaverTimers): Game {
       trees: state.trees,
       goals: state.goals,
       storySeen: seenStory,
+      coach: { memory: coachMemory, config: coachConfig },
     });
   }
 
@@ -92,6 +102,8 @@ export function createGame(gateways: Gateways, timers?: AutosaverTimers): Game {
       focusedTreeId: active[active.length - 1]?.id,
     };
     seenStory = loaded.storySeen;
+    coachMemory = loaded.coach.memory;
+    coachConfig = loaded.coach.config;
     notify();
   }
 
@@ -176,6 +188,19 @@ export function createGame(gateways: Gateways, timers?: AutosaverTimers): Game {
       return outcome;
     },
     flushSave: () => autosaver.flush(),
+    coachMemory: () => coachMemory,
+    coachConfig: () => coachConfig,
+    appendCoachMemories(facts) {
+      if (facts.length === 0) return;
+      coachMemory = appendMemoryFacts(coachMemory, facts);
+      persist();
+      notify();
+    },
+    setCoachConfig(config) {
+      coachConfig = { ...config };
+      persist();
+      notify();
+    },
     treeViewModels: () =>
       state.trees.map((tree) => ({
         id: tree.id,

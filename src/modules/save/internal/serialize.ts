@@ -10,13 +10,15 @@ import {
   unlockSection,
 } from '../../world/index.ts';
 import { createGoal, createTree } from '../../entities/index.ts';
-import type { SaveData } from './schema.ts';
+import type { SaveData, SavedCoach } from './schema.ts';
+import { emptyCoach } from './schema.ts';
 
 export interface GameState {
   world: World;
   trees: Tree[];
   goals: Record<string, Goal>;
   storySeen: boolean;
+  coach: SavedCoach;
 }
 
 export interface SaveInput {
@@ -24,13 +26,20 @@ export interface SaveInput {
   trees: readonly Tree[];
   goals: Record<string, Goal>;
   storySeen: boolean;
+  coach: SavedCoach;
+}
+
+/** Deep-copy the coach state so saves never alias live objects. */
+function copyCoach(coach: SavedCoach): SavedCoach {
+  return { memory: { facts: [...coach.memory.facts] }, config: { ...coach.config } };
 }
 
 /** Serialize the live state; unlockedSections derived via isSectionUnlocked. */
 export function toSave(input: SaveInput): SaveData {
   return {
-    version: 1,
+    version: 2,
     storySeen: input.storySeen,
+    coach: copyCoach(input.coach),
     unlockedSections: input.world.sections
       .filter((section) => isSectionUnlocked(input.world, section.id))
       .map((section) => section.id),
@@ -75,6 +84,7 @@ export function fromSave(data: SaveData): GameState {
       ]),
     ),
     storySeen: data.storySeen,
+    coach: copyCoach(data.coach),
   };
 }
 
@@ -104,5 +114,11 @@ export function createDemoState(): GameState {
   const goal = createGoal('goal-demo-sleep', GOAL_TEMPLATES.sleep);
   const tree = createTree('tree-demo', tile, 'A', goal.id);
   world = revealAround(world, tile);
-  return { world, trees: [tree], goals: { [goal.id]: goal }, storySeen: false };
+  return {
+    world,
+    trees: [tree],
+    goals: { [goal.id]: goal },
+    storySeen: false,
+    coach: emptyCoach(),
+  };
 }

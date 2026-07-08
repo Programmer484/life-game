@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { ChatMessage, CoachMode } from '../index.ts';
+import type { CoachEffects, CoachTransport, CoachTransportRequest } from '../index.ts';
 import { createCoachSession } from '../index.ts';
 
-function fakeTransport(replies: string[]) {
-  const calls: { mode: CoachMode; messages: readonly ChatMessage[] }[] = [];
-  const transport = (mode: CoachMode, messages: readonly ChatMessage[]) => {
-    calls.push({ mode, messages: [...messages] });
-    return Promise.resolve(replies[calls.length - 1] ?? '(no reply)');
+function fakeTransport(replies: (string | { reply: string; effects?: CoachEffects })[]) {
+  const calls: CoachTransportRequest[] = [];
+  const transport: CoachTransport = (request) => {
+    calls.push({ ...request, messages: [...request.messages] });
+    const next = replies[calls.length - 1] ?? '(no reply)';
+    return Promise.resolve(typeof next === 'string' ? { reply: next } : next);
   };
   return { transport, calls };
 }
@@ -36,13 +37,45 @@ describe('createCoachSession', () => {
     expect(session.history()).toHaveLength(4);
   });
 
-  it('passes its own mode to the transport', async () => {
+  it('passes its own mode plus injected memory and config to the transport', async () => {
     const goal = fakeTransport(['ok']);
-    const reflection = fakeTransport(['ok']);
-    await createCoachSession('goal', goal.transport).send('hi');
-    await createCoachSession('reflection', reflection.transport).send('hi');
+    await createCoachSession('goal', goal.transport, {
+      memory: { facts: ['Night owl'] },
+      config: { tone: 'direct' },
+    }).send('hi');
     expect(goal.calls[0]?.mode).toBe('goal');
+    expect(goal.calls[0]?.memory).toEqual({ facts: ['Night owl'] });
+    expect(goal.calls[0]?.config).toEqual({ tone: 'direct' });
+
+    const reflection = fakeTransport(['ok']);
+    await createCoachSession('reflection', reflection.transport).send('hi');
     expect(reflection.calls[0]?.mode).toBe('reflection');
+    expect(reflection.calls[0]?.memory).toEqual({ facts: [] });
+  });
+
+  it('surfaces effects through onEffects and still resolves to the reply text', async () => {
+    const effects: CoachEffects = { memories: ['Prefers mornings'] };
+    const { transport } = fakeTransport([{ reply: 'Noted!', effects }]);
+    const received: CoachEffects[] = [];
+    const session = createCoachSession('reflection', transport, {
+      memory: { facts: [] },
+      config: {},
+      onEffects: (incoming) => received.push(incoming),
+    });
+    await expect(session.send('I wake up late')).resolves.toBe('Noted!');
+    expect(received).toEqual([effects]);
+  });
+
+  it('does not invoke onEffects when the response carries none', async () => {
+    const { transport } = fakeTransport(['plain reply']);
+    const received: CoachEffects[] = [];
+    const session = createCoachSession('goal', transport, {
+      memory: { facts: [] },
+      config: {},
+      onEffects: (incoming) => received.push(incoming),
+    });
+    await session.send('hi');
+    expect(received).toEqual([]);
   });
 
   it('leaves history unchanged when the transport rejects', async () => {

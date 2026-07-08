@@ -44,8 +44,17 @@ function chooseGateways(): Gateways {
  * key lives server-side, so a missing key surfaces as the proxy's 503 error
  * message inside the chat, not as an offline panel.
  */
-function coachFactory(mode: CoachMode, transport: CoachTransport): () => ChatSession {
-  return () => createCoachSession(mode, transport);
+function coachFactory(mode: CoachMode, transport: CoachTransport, game: Game): () => ChatSession {
+  return () =>
+    createCoachSession(mode, transport, {
+      memory: game.coachMemory(),
+      config: game.coachConfig(),
+      // goalTemplate effects surface here too; the planting flow consumes
+      // them in a later slice — for now only memories are applied.
+      onEffects: (effects) => {
+        if (effects.memories !== undefined) game.appendCoachMemories(effects.memories);
+      },
+    });
 }
 
 /** Boot the shell: auth screen → (first run) story → island scene. */
@@ -143,7 +152,7 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
   const coachTransport = createProxyTransport();
 
   const reflectionModal = createReflectionModal({
-    createSession: coachFactory('reflection', coachTransport),
+    createSession: coachFactory('reflection', coachTransport, game),
   });
   dock(reflectionModal.el, { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
 
@@ -172,7 +181,7 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
         : game.plantAt(tile, templateKey, type);
       if (!outcome.ok) toastRejection(outcome.reason, 'plant');
     },
-    createGoalChat: coachFactory('goal', coachTransport),
+    createGoalChat: coachFactory('goal', coachTransport, game),
   });
   dock(modal.el, { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
 

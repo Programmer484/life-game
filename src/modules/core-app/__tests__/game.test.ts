@@ -1,6 +1,7 @@
 // S13 acceptance tests (§7): the headless game controller over null
 // gateways. No Pixi, no DOM — pure event flow from sign-in to save.
 import { describe, expect, it } from 'vitest';
+import { MEMORY_FACT_CAP } from '../../coach/index.ts';
 import type { TileCoord } from '../../config/index.ts';
 import { GOAL_TEMPLATES, TASKS_PER_TREE, UNLOCK_COST_BY_SECTION } from '../../config/index.ts';
 import { createNullGateways, toSave } from '../../save/index.ts';
@@ -249,7 +250,12 @@ describe('save — reload restores identical state', () => {
     expect(second.storySeen()).toBe(true);
     expect(second.state().trees).toEqual(first.state().trees);
     expect(second.state().goals).toEqual(first.state().goals);
-    const snapshot = (game: Game) => toSave({ ...game.state(), storySeen: game.storySeen() });
+    const snapshot = (game: Game) =>
+      toSave({
+        ...game.state(),
+        storySeen: game.storySeen(),
+        coach: { memory: game.coachMemory(), config: game.coachConfig() },
+      });
     expect(snapshot(second)).toEqual(snapshot(first));
     // Full per-tile equality, not just the serialized section list.
     for (const section of first.state().world.sections) {
@@ -308,5 +314,49 @@ describe('story', () => {
     const second = createGame(gateways);
     await second.signIn(EMAIL, PASSWORD);
     expect(second.storySeen()).toBe(true);
+  });
+});
+
+describe('coach memory + config', () => {
+  it('starts empty and appends memories FIFO-capped at MEMORY_FACT_CAP', async () => {
+    const game = await signedInGame();
+    expect(game.coachMemory()).toEqual({ facts: [] });
+    expect(game.coachConfig()).toEqual({});
+
+    game.appendCoachMemories(['fact 0']);
+    const many = Array.from({ length: MEMORY_FACT_CAP }, (_, i) => `fact ${String(i + 1)}`);
+    game.appendCoachMemories(many);
+
+    const facts = game.coachMemory().facts;
+    expect(facts).toHaveLength(MEMORY_FACT_CAP);
+    expect(facts[0]).toBe('fact 1'); // the oldest fact was dropped first
+    expect(facts[facts.length - 1]).toBe(`fact ${String(MEMORY_FACT_CAP)}`);
+  });
+
+  it('persists memories and config across a save/load cycle', async () => {
+    const gateways = createNullGateways();
+    const first = await signedInGame(gateways);
+    first.appendCoachMemories(['Night owl']);
+    first.setCoachConfig({ tone: 'direct', customInstructions: 'Keep it brief' });
+    await first.flushSave();
+
+    const second = createGame(gateways);
+    await second.signIn(EMAIL, PASSWORD);
+    expect(second.coachMemory()).toEqual({ facts: ['Night owl'] });
+    expect(second.coachConfig()).toEqual({ tone: 'direct', customInstructions: 'Keep it brief' });
+  });
+
+  it('notifies subscribers on memory and config changes; empty appends are no-ops', async () => {
+    const game = await signedInGame();
+    let ticks = 0;
+    game.subscribe(() => {
+      ticks += 1;
+    });
+    game.appendCoachMemories([]);
+    expect(ticks).toBe(0);
+    game.appendCoachMemories(['fact']);
+    expect(ticks).toBe(1);
+    game.setCoachConfig({ tone: 'playful' });
+    expect(ticks).toBe(2);
   });
 });
