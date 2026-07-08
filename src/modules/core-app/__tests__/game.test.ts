@@ -294,6 +294,51 @@ describe('dev shortcuts', () => {
       reason: 'fogged',
     });
   });
+
+  it('devUnlockNextSection unlocks the cheapest locked section, ignoring its cost', async () => {
+    const game = await signedInGame();
+    expect(isSectionUnlocked(game.state().world, 2)).toBe(false); // 0 grown trees
+
+    let ticks = 0;
+    game.subscribe(() => {
+      ticks += 1;
+    });
+    game.devUnlockNextSection();
+    expect(isSectionUnlocked(game.state().world, 2)).toBe(true);
+    expect(ticks).toBe(1);
+    // Type B unlocks with the section, exactly as a legitimate unlock would.
+    expect(availableTreeTypes(game.state())).toEqual(['A', 'B']);
+  });
+
+  it('devUnlockNextSection walks sections in order and no-ops when all are unlocked', async () => {
+    const game = await signedInGame();
+    const ids = Object.keys(UNLOCK_COST_BY_SECTION)
+      .map(Number)
+      .sort((a, b) => a - b);
+    for (const id of ids) {
+      expect(isSectionUnlocked(game.state().world, id)).toBe(false);
+      game.devUnlockNextSection();
+      expect(isSectionUnlocked(game.state().world, id)).toBe(true);
+    }
+
+    let ticks = 0;
+    game.subscribe(() => {
+      ticks += 1;
+    });
+    game.devUnlockNextSection(); // everything unlocked: silent no-op
+    expect(ticks).toBe(0);
+  });
+
+  it('devUnlockNextSection persists — the unlock survives a save/reload cycle', async () => {
+    const gateways = createNullGateways();
+    const first = await signedInGame(gateways);
+    first.devUnlockNextSection();
+    await first.flushSave();
+
+    const second = createGame(gateways);
+    await second.signIn(EMAIL, PASSWORD);
+    expect(isSectionUnlocked(second.state().world, 2)).toBe(true);
+  });
 });
 
 describe('story', () => {

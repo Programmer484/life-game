@@ -2,8 +2,11 @@
 export type { AuthScreen, AuthScreenDeps } from './internal/auth-screen.ts';
 export { createAuthScreen } from './internal/auth-screen.ts';
 export type { ChatSession } from './internal/chat-panel.ts';
+export { createDevHelpModal } from './internal/dev-help-modal.ts';
+export { isDevMode } from './internal/dev-mode.ts';
 export type { DevPanel, DevPanelDeps } from './internal/dev-panel.ts';
 export { createDevPanel } from './internal/dev-panel.ts';
+export { createShortcuts } from './internal/shortcuts.ts';
 export type { PlantChoice, PlantingModal, PlantingModalDeps } from './internal/planting-modal.ts';
 export { createPlantingModal } from './internal/planting-modal.ts';
 export type { ReflectButtonDeps } from './internal/reflect-button.ts';

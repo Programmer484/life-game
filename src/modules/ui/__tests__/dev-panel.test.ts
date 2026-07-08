@@ -6,6 +6,8 @@ import { applyTaskCompleted } from '../../systems/index.ts';
 import type { GameplayState } from '../../systems/index.ts';
 import { createWorld } from '../../world/index.ts';
 import { createDevPanel } from '../index.ts';
+import type { DevPanelDeps } from '../index.ts';
+import { DEV_TOOLS } from '../internal/dev-help-modal.ts';
 
 const GOAL_ID = 'goal-1';
 const TREE_ID = 'tree-1';
@@ -32,8 +34,13 @@ function advance(state: GameplayState, count: number): GameplayState {
   return next;
 }
 
-function noDeps(): { onSkipStage: () => void } {
-  return { onSkipStage: () => {} };
+function noDeps(): DevPanelDeps {
+  return {
+    onSkipStage: () => {},
+    onCompleteTask: () => {},
+    onUnlockSection: () => {},
+    onHelp: () => {},
+  };
 }
 
 function query(el: HTMLElement, testid: string): HTMLButtonElement | null {
@@ -41,45 +48,90 @@ function query(el: HTMLElement, testid: string): HTMLButtonElement | null {
 }
 
 describe('dev panel', () => {
-  it('renders the skip button with its label and no plant button', () => {
+  it('renders one row per DEV_TOOLS entry — shortcut chip and name from the shared constant', () => {
     const panel = createDevPanel(noDeps());
 
     expect(panel.el.dataset['testid']).toBe('dev-panel');
-    expect(query(panel.el, 'dev-skip-stage')?.textContent).toBe('Skip to next tree stage');
-    expect(query(panel.el, 'dev-plant-grown')).toBeNull();
+    const text = panel.el.textContent!;
+    for (const tool of DEV_TOOLS) {
+      expect(text).toContain(tool.key);
+      expect(text).toContain(tool.name);
+    }
   });
 
-  it('calls onSkipStage once when the skip button is clicked', () => {
-    const onSkipStage = vi.fn();
-    const panel = createDevPanel({ ...noDeps(), onSkipStage });
+  it('wires every action control to its callback', () => {
+    const deps = {
+      onSkipStage: vi.fn(),
+      onCompleteTask: vi.fn(),
+      onUnlockSection: vi.fn(),
+      onHelp: vi.fn(),
+    };
+    const panel = createDevPanel(deps);
     panel.update(stateWithTree());
 
     query(panel.el, 'dev-skip-stage')?.click();
+    query(panel.el, 'dev-complete-task')?.click();
+    query(panel.el, 'dev-unlock-section')?.click();
+    query(panel.el, 'dev-help')?.click();
 
-    expect(onSkipStage).toHaveBeenCalledTimes(1);
+    expect(deps.onSkipStage).toHaveBeenCalledTimes(1);
+    expect(deps.onCompleteTask).toHaveBeenCalledTimes(1);
+    expect(deps.onUnlockSection).toHaveBeenCalledTimes(1);
+    expect(deps.onHelp).toHaveBeenCalledTimes(1);
   });
 
-  it('disables skip when no tree is focused (fresh state)', () => {
+  it('starts with plant-grown off; the row button and togglePlantGrown() both flip it', () => {
+    const panel = createDevPanel(noDeps());
+    expect(panel.isPlantGrownEnabled()).toBe(false);
+    expect(query(panel.el, 'dev-plant-grown')?.getAttribute('aria-pressed')).toBe('false');
+
+    query(panel.el, 'dev-plant-grown')?.click();
+    expect(panel.isPlantGrownEnabled()).toBe(true);
+    expect(query(panel.el, 'dev-plant-grown')?.getAttribute('aria-pressed')).toBe('true');
+
+    panel.togglePlantGrown();
+    expect(panel.isPlantGrownEnabled()).toBe(false);
+    expect(query(panel.el, 'dev-plant-grown')?.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('collapses to just the header and expands back', () => {
+    const panel = createDevPanel(noDeps());
+    const body = query(panel.el, 'dev-panel-body')!;
+    expect(body.style.display).not.toBe('none');
+
+    panel.toggleCollapsed();
+    expect(body.style.display).toBe('none');
+    expect(query(panel.el, 'dev-panel-header')?.getAttribute('aria-expanded')).toBe('false');
+
+    query(panel.el, 'dev-panel-header')?.click(); // header click expands again
+    expect(body.style.display).not.toBe('none');
+    expect(query(panel.el, 'dev-panel-header')?.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('disables focused-tree actions when no tree is focused (fresh state)', () => {
     const panel = createDevPanel(noDeps());
     panel.update(stateWithTree({ focusedTreeId: undefined }));
 
     expect(query(panel.el, 'dev-skip-stage')?.disabled).toBe(true);
+    expect(query(panel.el, 'dev-complete-task')?.disabled).toBe(true);
   });
 
-  it('enables skip when an active tree is focused', () => {
+  it('enables focused-tree actions when an active tree is focused', () => {
     const panel = createDevPanel(noDeps());
     panel.update(stateWithTree());
 
     expect(query(panel.el, 'dev-skip-stage')?.disabled).toBe(false);
+    expect(query(panel.el, 'dev-complete-task')?.disabled).toBe(false);
   });
 
-  it('disables skip again once the focused tree completes', () => {
+  it('disables focused-tree actions again once the focused tree completes', () => {
     const panel = createDevPanel(noDeps());
     const state = stateWithTree();
     panel.update(state);
     panel.update(advance(state, GOAL_TEMPLATES.sleep.tasks.length));
 
     expect(query(panel.el, 'dev-skip-stage')?.disabled).toBe(true);
+    expect(query(panel.el, 'dev-complete-task')?.disabled).toBe(true);
   });
 
   it('does not duplicate DOM nodes or stack listeners across repeated updates', () => {

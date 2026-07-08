@@ -12,15 +12,18 @@ import { createNullGateways, createSupabaseGateways } from '../../save/index.ts'
 import type { ChatSession } from '../../ui/index.ts';
 import {
   createAuthScreen,
+  createDevHelpModal,
   createDevPanel,
   createPlantingModal,
   createReflectButton,
   createReflectionModal,
+  createShortcuts,
   createStoryScreen,
   createTasksPanel,
   createToastHost,
   createTreeSlots,
   createXpBar,
+  isDevMode,
   plantRejectionFeedback,
 } from '../../ui/index.ts';
 import type { Game } from './game.ts';
@@ -37,6 +40,12 @@ function chooseGateways(): Gateways {
   }
   console.info('[life-game] persistence: in-memory null gateways (dev fallback)');
   return createNullGateways();
+}
+
+/** Whether this is a dev build (Vite sets `import.meta.env.DEV`). */
+function isDevBuild(): boolean {
+  const env = (import.meta as unknown as { env?: Record<string, unknown> }).env ?? {};
+  return env['DEV'] === true;
 }
 
 /**
@@ -155,19 +164,15 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
   corner.style.gap = '8px';
   dock(corner, { bottom: '16px', right: '16px' });
 
-  const devPanel = createDevPanel({
-    onSkipStage: () => {
-      game.devSkipStage();
-    },
-  });
-  corner.appendChild(devPanel.el);
-
   const reflect = createReflectButton({ onClick: () => reflectionModal.open() });
   corner.appendChild(reflect.el);
 
+  // Assigned by the dev-tools block below; absent in production builds.
+  let devPanel: ReturnType<typeof createDevPanel> | undefined;
+
   const modal = createPlantingModal({
-    onPlant: ({ tile, templateKey, type, grown }) => {
-      const outcome = grown
+    onPlant: ({ tile, templateKey, type }) => {
+      const outcome = devPanel?.isPlantGrownEnabled()
         ? game.devPlantFullyGrown(tile, templateKey, type)
         : game.plantAt(tile, templateKey, type);
       if (!outcome.ok) toastRejection(outcome.reason, 'plant');
@@ -175,6 +180,43 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
     createGoalChat: coachFactory('goal', coachTransport),
   });
   dock(modal.el, { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
+
+  // ── Dev tools: panel + help modal + shortcuts, rendered only in dev mode ──
+  if (isDevMode(window.location.search, window.localStorage, isDevBuild())) {
+    const helpModal = createDevHelpModal();
+    dock(helpModal.el, { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' });
+
+    const panel = createDevPanel({
+      onSkipStage: () => {
+        game.devSkipStage();
+      },
+      onCompleteTask: () => {
+        game.completeNextTask();
+      },
+      onUnlockSection: () => {
+        game.devUnlockNextSection();
+      },
+      onHelp: () => helpModal.open(),
+    });
+    devPanel = panel;
+    corner.insertBefore(panel.el, reflect.el); // stacked above the reflect button
+
+    const shortcuts = createShortcuts({
+      isModalOpen: () => modal.isOpen() || reflectionModal.isOpen() || helpModal.isOpen(),
+    });
+    shortcuts.register('1', () => {
+      game.devSkipStage();
+    });
+    shortcuts.register('2', () => {
+      game.completeNextTask();
+    });
+    shortcuts.register('3', () => panel.togglePlantGrown());
+    shortcuts.register('4', () => {
+      game.devUnlockNextSection();
+    });
+    shortcuts.register('?', () => helpModal.open());
+    shortcuts.register('`', () => panel.toggleCollapsed());
+  }
 
   // ── Clicks: tap a tree to focus it; tap plantable ground to plant ─────────
   viewport.on('clicked', (event: { world: { x: number; y: number } }) => {
@@ -200,7 +242,7 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
     tasksPanel.update(state);
     xpBar.update(state);
     treeSlots.update(state);
-    devPanel.update(state);
+    devPanel?.update(state);
   };
   game.subscribe(rerender);
   rerender();

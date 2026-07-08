@@ -2,7 +2,7 @@
 // The thin shell (app.ts) drives it through these methods and subscribes for
 // re-renders; the acceptance tests drive it over the null gateways.
 import type { GrowthStage, TileCoord, TreeType, Vibrancy } from '../../config/index.ts';
-import { GOAL_TEMPLATES, TASKS_PER_TREE } from '../../config/index.ts';
+import { GOAL_TEMPLATES, TASKS_PER_TREE, UNLOCK_COST_BY_SECTION } from '../../config/index.ts';
 import { createGoal, nextTaskIndex, taskCompletedEvent } from '../../entities/index.ts';
 import type { AuthResult, AutosaverTimers, Gateways } from '../../save/index.ts';
 import { createAutosaver, loadOrCreate } from '../../save/index.ts';
@@ -18,7 +18,7 @@ import {
   plantTree,
   stageOf,
 } from '../../systems/index.ts';
-import { createWorld, vibrancyMap } from '../../world/index.ts';
+import { createWorld, isSectionUnlocked, unlockSection, vibrancyMap } from '../../world/index.ts';
 
 export type TemplateKey = keyof typeof GOAL_TEMPLATES;
 
@@ -49,6 +49,8 @@ export interface Game {
   devSkipStage(): void;
   /** Dev: the normal plant flow, then all 18 tasks completed (PRD shortcut). */
   devPlantFullyGrown(tile: TileCoord, templateKey: TemplateKey, type: TreeType): PlantOutcome;
+  /** Dev: unlock the cheapest locked section, ignoring its cost; no-op when none left. */
+  devUnlockNextSection(): void;
   /** Persist any pending autosave immediately (used on reload/teardown). */
   flushSave(): Promise<void>;
   treeViewModels(): TreeViewModel[];
@@ -174,6 +176,18 @@ export function createGame(gateways: Gateways, timers?: AutosaverTimers): Game {
       state = { ...state, focusedTreeId: previousFocus };
       notify();
       return outcome;
+    },
+    devUnlockNextSection() {
+      // Explicit dev bypass at the game layer: the systems progression rules
+      // (cost thresholds) are untouched — this jumps straight to the world op.
+      const next = Object.keys(UNLOCK_COST_BY_SECTION)
+        .map(Number)
+        .sort((a, b) => a - b)
+        .find((id) => !isSectionUnlocked(state.world, id));
+      if (next === undefined) return;
+      state = { ...state, world: unlockSection(state.world, next) };
+      persist();
+      notify();
     },
     flushSave: () => autosaver.flush(),
     treeViewModels: () =>

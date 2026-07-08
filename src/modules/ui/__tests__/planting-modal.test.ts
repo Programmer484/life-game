@@ -89,7 +89,6 @@ describe('ui / planting modal', () => {
       tile: TILE,
       templateKey: 'sleep',
       type: 'A',
-      grown: false,
     });
     expect(modal.isOpen()).toBe(false);
   });
@@ -119,7 +118,6 @@ describe('ui / planting modal', () => {
       tile: TILE,
       templateKey: 'workout',
       type: 'A',
-      grown: false,
     });
   });
 
@@ -136,37 +134,13 @@ describe('ui / planting modal', () => {
       tile: TILE,
       templateKey: 'sleep',
       type: 'B',
-      grown: false,
     });
   });
 
-  it('plants fully grown when the dev toggle is on, and the toggle resets on re-open', () => {
-    const onPlant = vi.fn<(choice: PlantChoice) => void>();
-    const modal = createPlantingModal({ onPlant });
+  it('has no dev plant-grown toggle — that moved to the dev panel', () => {
+    const modal = createPlantingModal({ onPlant: () => {} });
     modal.open(stateWith(), TILE);
-
-    click(query(modal.el, 'plant-grown-toggle'));
-    expect(query(modal.el, 'plant-grown-toggle')?.getAttribute('aria-pressed')).toBe('true');
-    click(query(modal.el, 'autofill'));
-    click(query(modal.el, 'template-sleep'));
-
-    expect(onPlant).toHaveBeenCalledWith({
-      tile: TILE,
-      templateKey: 'sleep',
-      type: 'A',
-      grown: true,
-    });
-
-    modal.open(stateWith(), TILE);
-    expect(query(modal.el, 'plant-grown-toggle')?.getAttribute('aria-pressed')).toBe('false');
-    click(query(modal.el, 'autofill'));
-    click(query(modal.el, 'template-workout'));
-    expect(onPlant).toHaveBeenLastCalledWith({
-      tile: TILE,
-      templateKey: 'workout',
-      type: 'A',
-      grown: false,
-    });
+    expect(query(modal.el, 'plant-grown-toggle')).toBeNull();
   });
 
   it('Cancel closes the modal without calling onPlant', () => {
@@ -200,7 +174,6 @@ describe('ui / planting modal', () => {
       tile: TILE,
       templateKey: 'sleep',
       type: 'A',
-      grown: false,
     });
   });
 
@@ -219,7 +192,6 @@ describe('ui / planting modal', () => {
     expect(modal.el.querySelectorAll('[data-testid="tree-type-a"]')).toHaveLength(1);
     expect(modal.el.querySelectorAll('[data-testid="tree-type-b"]')).toHaveLength(1);
     expect(modal.el.querySelectorAll('[data-testid="template-sleep"]')).toHaveLength(1);
-    expect(modal.el.querySelectorAll('[data-testid="plant-grown-toggle"]')).toHaveLength(1);
     expect(modal.el.querySelectorAll('[data-testid="modal-cancel"]')).toHaveLength(1);
   });
 });

@@ -11,8 +11,6 @@ export interface PlantChoice {
   tile: TileCoord;
   templateKey: 'sleep' | 'workout';
   type: TreeType;
-  /** Dev shortcut: plant the tree already fully grown. */
-  grown: boolean;
 }
 
 export interface PlantingModalDeps {
@@ -73,17 +71,6 @@ export function createPlantingModal(deps: PlantingModalDeps): PlantingModal {
   typeA.addEventListener('click', () => selectType('A'));
   typeB.addEventListener('click', () => selectType('B'));
 
-  // Dev shortcut: when toggled on, the chosen plant is created fully grown.
-  const grownToggle = button('plant-grown-toggle', 'Fully grown (dev)');
-  el.appendChild(grownToggle);
-
-  let plantGrown = false;
-  function setGrown(value: boolean): void {
-    plantGrown = value;
-    grownToggle.setAttribute('aria-pressed', String(value));
-  }
-  grownToggle.addEventListener('click', () => setGrown(!plantGrown));
-
   const autofill = button('autofill', 'Autofill', 'primary');
   el.appendChild(autofill);
 
@@ -102,7 +89,7 @@ export function createPlantingModal(deps: PlantingModalDeps): PlantingModal {
   function pick(templateKey: 'sleep' | 'workout'): void {
     const tile = openTile!;
     close();
-    deps.onPlant({ tile, templateKey, type: selectedType, grown: plantGrown });
+    deps.onPlant({ tile, templateKey, type: selectedType });
   }
 
   autofill.addEventListener('click', () => {
@@ -122,7 +109,6 @@ export function createPlantingModal(deps: PlantingModalDeps): PlantingModal {
     panel.start(deps.createGoalChat?.());
     templates.replaceChildren();
     selectType('A');
-    setGrown(false);
     if (availableTreeTypes(state).includes('B')) {
       typeRow.appendChild(typeB);
     } else {
