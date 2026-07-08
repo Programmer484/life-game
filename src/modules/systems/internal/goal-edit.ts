@@ -9,8 +9,10 @@ import type { GameplayState } from './planting.ts';
  * that id. `wrong-count`: not exactly 18 tasks. `invalid-task`: a task has an
  * empty title or minutes outside the allowed range. `locked-changed`: the
  * title or minutes of an already-completed (locked) task was altered.
+ * `invalid-name`: the new goal name is empty (or whitespace-only).
  */
-export type GoalEditRejection = 'unknown-goal' | 'wrong-count' | 'invalid-task' | 'locked-changed';
+export type GoalEditRejection =
+  'unknown-goal' | 'wrong-count' | 'invalid-task' | 'locked-changed' | 'invalid-name';
 
 function validTask(task: TaskDef): boolean {
   if (task.title.trim() === '') return false;
@@ -23,20 +25,24 @@ function validTask(task: TaskDef): boolean {
 }
 
 /**
- * Replace a goal's task list. The new list must hold EXACTLY 18 valid tasks,
- * and the already-completed prefix (tasks done, which are always the leading
- * rows) must be unchanged in title and minutes — a player may re-plan the
- * work ahead but not rewrite history. Done flags are preserved positionally.
- * Returns the updated state or a typed rejection; the input state is never
- * mutated.
+ * Replace a goal's name and task list. The new name must be a non-empty
+ * (post-trim) string, and the new list must hold EXACTLY 18 valid tasks; the
+ * already-completed prefix (tasks done, which are always the leading rows)
+ * must be unchanged in title and minutes — a player may rename the goal and
+ * re-plan the work ahead but not rewrite history. Done flags are preserved
+ * positionally. Returns the updated state or a typed rejection; the input
+ * state is never mutated.
  */
 export function updateGoalTasks(
   state: GameplayState,
   goalId: string,
+  name: string,
   tasks: readonly TaskDef[],
 ): { ok: true; state: GameplayState } | { ok: false; reason: GoalEditRejection } {
   const goal = state.goals[goalId];
   if (goal === undefined) return { ok: false, reason: 'unknown-goal' };
+  const trimmedName = typeof name === 'string' ? name.trim() : '';
+  if (trimmedName === '') return { ok: false, reason: 'invalid-name' };
   if (tasks.length !== TASKS_PER_TREE) return { ok: false, reason: 'wrong-count' };
   if (!tasks.every(validTask)) return { ok: false, reason: 'invalid-task' };
 
@@ -57,6 +63,9 @@ export function updateGoalTasks(
   }));
   return {
     ok: true,
-    state: { ...state, goals: { ...state.goals, [goalId]: { ...goal, tasks: nextTasks } } },
+    state: {
+      ...state,
+      goals: { ...state.goals, [goalId]: { ...goal, name: trimmedName, tasks: nextTasks } },
+    },
   };
 }

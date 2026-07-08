@@ -60,8 +60,8 @@ export interface Game {
   plantAt(tile: TileCoord, draft: GoalDraft, type: TreeType): PlantOutcome;
   canPlantAt(tile: TileCoord): ReturnType<typeof canPlant>;
   focusTree(id: string): void;
-  /** Replace a goal's task list (editing an existing tree); rejection is typed. */
-  updateGoalTasks(goalId: string, tasks: readonly TaskDef[]): GoalEditOutcome;
+  /** Replace a goal's name and task list (editing an existing tree); rejection is typed. */
+  updateGoalTasks(goalId: string, name: string, tasks: readonly TaskDef[]): GoalEditOutcome;
   /** Dev: complete the focused tree's remaining tasks in its CURRENT stage. */
   devSkipStage(): void;
   /** Dev: the normal plant flow, then all 18 tasks completed (PRD shortcut). */
@@ -185,8 +185,8 @@ export function createGame(gateways: Gateways, timers?: AutosaverTimers): Game {
       state = next;
       notify();
     },
-    updateGoalTasks(goalId, tasks) {
-      const result = applyGoalEdit(state, goalId, tasks);
+    updateGoalTasks(goalId, name, tasks) {
+      const result = applyGoalEdit(state, goalId, name, tasks);
       if (!result.ok) return result;
       state = result.state;
       persist();

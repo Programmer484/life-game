@@ -147,8 +147,8 @@ async function startIsland(host: HTMLElement, game: Game): Promise<void> {
 
   // Built before the tasks panel so its "Edit tasks" button can open it.
   const editGoalModal = createEditGoalModal({
-    onSave: (goalId, tasks) => {
-      const outcome = game.updateGoalTasks(goalId, tasks);
+    onSave: (goalId, name, tasks) => {
+      const outcome = game.updateGoalTasks(goalId, name, tasks);
       if (!outcome.ok) toasts.show('That edit was rejected — try again.', 'error');
     },
   });

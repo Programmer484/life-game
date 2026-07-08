@@ -13,6 +13,7 @@ import { updateGoalTasks } from '../index.ts';
 import type { GameplayState } from '../index.ts';
 
 const BASE = GOAL_TEMPLATES.sleep.tasks.map((task) => ({ ...task }));
+const NAME = GOAL_TEMPLATES.sleep.name;
 
 function stateWith(goal: Goal): GameplayState {
   return { world: createWorld(), trees: [], goals: { [goal.id]: goal } };
@@ -38,7 +39,7 @@ describe('systems / updateGoalTasks — properties', () => {
           const next: TaskDef[] = BASE.map((task, i) =>
             i < done ? task : { title: `edited ${String(i)}`, estimatedMinutes: minutesByRow[i]! },
           );
-          const result = updateGoalTasks(stateWith(goal), 'g', next);
+          const result = updateGoalTasks(stateWith(goal), 'g', NAME, next);
           expect(result.ok).toBe(true);
           if (!result.ok) return;
           const tasks = result.state.goals['g']!.tasks;
@@ -60,7 +61,7 @@ describe('systems / updateGoalTasks — properties', () => {
         const next = BASE.map((task, i) =>
           i === lockedRow ? { ...task, title: `${task.title}!!` } : task,
         );
-        expect(updateGoalTasks(stateWith(goal), 'g', next)).toEqual({
+        expect(updateGoalTasks(stateWith(goal), 'g', NAME, next)).toEqual({
           ok: false,
           reason: 'locked-changed',
         });
