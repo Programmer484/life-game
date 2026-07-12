@@ -27,6 +27,7 @@
     "debt": "node scripts/debt.ts",
     "edit-log": "node scripts/edit-log.ts",
     "pr": "node scripts/pr.ts",
+    "sync-framework": "node scripts/sync-framework.ts",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
